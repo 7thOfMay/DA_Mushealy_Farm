@@ -1,4 +1,22 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Mushealy — Smart Farm Management System
+
+Hệ thống quản lý nông trại thông minh, xây dựng bằng **Next.js 14 App Router**, TypeScript, Tailwind CSS và Zustand.
+
+### Tính năng chính
+- 🌿 Dashboard giám sát cảm biến realtime (nhiệt độ, độ ẩm, ánh sáng, pH)
+- 💧 Điều khiển thiết bị tưới tiêu thông minh
+- 📊 Báo cáo & phân tích dữ liệu
+- 🤖 AI chẩn đoán sức khỏe cây trồng
+- 📅 Lịch chăm sóc tự động
+- 🔐 Phân quyền ADMIN / FARMER
+
+### Demo credentials
+| Email | Mật khẩu | Vai trò |
+|---|---|---|
+| admin@mushealy.vn | 123456 | Admin |
+| farmer@mushealy.vn | 123456 | Nông dân |
+
+---
 
 ## Getting Started
 
