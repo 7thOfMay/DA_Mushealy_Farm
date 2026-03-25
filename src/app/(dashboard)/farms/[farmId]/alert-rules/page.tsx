@@ -7,6 +7,7 @@ import { Badge, EmptyState } from "@/components/shared/index";
 import { useAppStore } from "@/lib/store";
 import { cropKnowledgeCatalog } from "@/lib/cropKnowledge";
 import { cn } from "@/lib/utils";
+import { apiCreateAlertRule, apiUpdateAlertRule, apiDeleteAlertRule } from "@/lib/api/client";
 import type { AlertRule, SensorType } from "@/types";
 import { CircleAlert, Pencil, Plus, ShieldAlert, SlidersHorizontal, Trash2, X } from "lucide-react";
 
@@ -94,10 +95,11 @@ export default function AlertRulesPage() {
     setShowModal(true);
   };
 
-  const saveRule = () => {
+  const saveRule = async () => {
     if (!name.trim() || !conditions.length) return;
 
     if (editingRuleId) {
+      try { await apiUpdateAlertRule(editingRuleId, name.trim(), severity); } catch {}
       updateAlertRule(editingRuleId, {
         cropTypeId,
         name: name.trim(),
@@ -112,8 +114,15 @@ export default function AlertRulesPage() {
       return;
     }
 
+    let serverId: string | undefined;
+    try {
+      const apiConditions = conditions.map((c) => ({ metricType: c.sensorType, operator: c.operator, value1: c.value }));
+      const result = await apiCreateAlertRule(name.trim(), severity, undefined, undefined, null, apiConditions);
+      serverId = result?.ruleId;
+    } catch {}
+
     const next: AlertRule = {
-      id: `ar${Date.now()}`,
+      id: serverId || `ar${Date.now()}`,
       farmId,
       cropTypeId,
       name: name.trim(),
@@ -209,7 +218,10 @@ export default function AlertRulesPage() {
                 <div className="mt-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => toggleAlertRule(rule.id)}
+                      onClick={async () => {
+                        try { await apiUpdateAlertRule(rule.id, undefined, undefined, undefined, !rule.isActive); } catch {}
+                        toggleAlertRule(rule.id);
+                      }}
                       className={cn(
                         "px-2.5 py-1 rounded-[20px] text-[0.6875rem] font-semibold border",
                         rule.isActive ? "bg-[#1B4332] text-white border-[#1B4332]" : "bg-white text-[#5C7A6A] border-[#E2E8E4]"
@@ -224,7 +236,8 @@ export default function AlertRulesPage() {
                       <Pencil size={14} />
                     </button>
                     <button
-                      onClick={() => {
+                      onClick={async () => {
+                        try { await apiDeleteAlertRule(rule.id); } catch {}
                         deleteAlertRule(rule.id);
                         addToast({ type: "warning", message: "Đã xóa alert rule" });
                       }}

@@ -21,8 +21,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="vi">
-      <body className={`${beVietnamPro.className} antialiased`}>
+    <html lang="vi" suppressHydrationWarning>
+      <body className={`${beVietnamPro.className} antialiased`} suppressHydrationWarning>
         {children}
       </body>
     </html>

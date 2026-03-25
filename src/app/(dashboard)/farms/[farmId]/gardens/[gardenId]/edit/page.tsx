@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Topbar } from "@/components/layout/Topbar";
 import { useAppStore } from "@/lib/store";
 import { FormErrorBanner, InlineFieldError } from "@/components/shared";
+import { apiUpdateGarden } from "@/lib/api/client";
 import type { PlantType } from "@/types";
 
 const colorMap: Record<PlantType, string> = {
@@ -35,6 +36,7 @@ export default function EditGardenPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
   const [areaError, setAreaError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const plantInfo = useMemo(() => plantTypeInfos.find((item) => item.id === plantType), [plantType, plantTypeInfos]);
 
@@ -42,7 +44,7 @@ export default function EditGardenPage() {
     return <div><Topbar title="Sửa khu vườn" subtitle="Không tìm thấy khu vườn" /></div>;
   }
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     const nextNameError = name.trim() ? null : "Tên khu vườn là bắt buộc.";
     const nextAreaError = areaM2 > 0 ? null : "Diện tích phải lớn hơn 0.";
@@ -55,6 +57,15 @@ export default function EditGardenPage() {
     }
 
     const nextName = name.trim();
+    const plantTypeMap: Record<string, number> = { CAI_XANH: 1, CA_CHUA: 2, NHA_DAM: 3 };
+    const statusMap: Record<string, string> = { OK: "active", WARN: "warning", ALERT: "alert" };
+
+    setSubmitting(true);
+    try {
+      await apiUpdateGarden(garden.id, nextName, plantTypeMap[plantType] ?? null, areaM2, description.trim() || null, statusMap[status]);
+    } catch { /* fallback to local */ }
+    setSubmitting(false);
+
     updateGarden(garden.id, {
       name: nextName,
       plantType,
@@ -153,7 +164,7 @@ export default function EditGardenPage() {
           </div>
           <div className="flex justify-end gap-2">
             <button type="button" className="btn-secondary" onClick={() => router.back()}>Hủy</button>
-            <button type="submit" className="btn-primary" disabled={!name.trim()}>Lưu thay đổi</button>
+            <button type="submit" className="btn-primary" disabled={!name.trim() || submitting}>{submitting ? "Đang lưu..." : "Lưu thay đổi"}</button>
           </div>
         </form>
       </div>

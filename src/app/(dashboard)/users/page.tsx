@@ -8,6 +8,7 @@ import { useAppStore } from "@/lib/store";
 import { Badge, EmptyState, FormErrorBanner, InlineFieldError, StatusDot } from "@/components/shared/index";
 import type { UserRole } from "@/types";
 import { isValidEmail, isValidPhone } from "@/lib/validation";
+import { apiCreateUser, apiUpdateUser } from "@/lib/api/client";
 
 function UserAvatar({ name }: { name: string }) {
   const initials = name
@@ -82,7 +83,7 @@ export default function UsersPage() {
     setEditForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleCreateUser = () => {
+  const handleCreateUser = async () => {
     const normalizedEmail = createForm.email.trim().toLowerCase();
     const nextErrors: Record<"name" | "email" | "phone", string | null> = {
       name: createForm.name.trim() ? null : "Họ và tên là bắt buộc.",
@@ -101,8 +102,18 @@ export default function UsersPage() {
       return;
     }
 
+    const roleMap: Record<string, number> = { ADMIN: 1, FARMER: 2, USER: 3 };
+    let serverId: string | undefined;
+    try {
+      const result = await apiCreateUser(
+        createForm.name.trim(), normalizedEmail, "123456",
+        createForm.name.trim(), createForm.phone.trim() || null, roleMap[createForm.role] ?? 3,
+      );
+      serverId = result?.userId;
+    } catch {}
+
     addUser({
-      id: `u${Date.now()}`,
+      id: serverId || `u${Date.now()}`,
       name: createForm.name.trim(),
       email: normalizedEmail,
       role: createForm.role,
@@ -135,7 +146,7 @@ export default function UsersPage() {
     setEditFieldErrors({ name: null, phone: null });
   };
 
-  const handleSaveUser = () => {
+  const handleSaveUser = async () => {
     if (!editingUser) return;
 
     const nextErrors: Record<"name" | "phone", string | null> = {
@@ -147,6 +158,14 @@ export default function UsersPage() {
       setEditError("Vui lòng kiểm tra lại thông tin trước khi lưu thay đổi.");
       return;
     }
+
+    const roleMap: Record<string, number> = { ADMIN: 1, FARMER: 2, USER: 3 };
+    try {
+      await apiUpdateUser(
+        editingUser.id, editForm.name.trim() || editingUser.name,
+        editForm.phone.trim() || null, roleMap[editForm.role], editForm.status === "active",
+      );
+    } catch {}
 
     updateUser(editingUser.id, {
       name: editForm.name.trim() || editingUser.name,
@@ -252,7 +271,8 @@ export default function UsersPage() {
                           Sửa
                         </button>
                         <button
-                          onClick={() => {
+                          onClick={async () => {
+                            try { await apiUpdateUser(user.id, undefined, undefined, undefined, user.status !== "active"); } catch {}
                             toggleUserStatus(user.id);
                             addToast({ type: "info", message: `${user.status === "active" ? "Đã khóa" : "Đã mở"} tài khoản ${user.name}` });
                           }}

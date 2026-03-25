@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Topbar } from "@/components/layout/Topbar";
 import { useAppStore } from "@/lib/store";
+import { apiCreateFarm } from "@/lib/api/client";
 import { FormErrorBanner, InlineFieldError } from "@/components/shared";
 
 export default function NewFarmPage() {
@@ -18,8 +19,9 @@ export default function NewFarmPage() {
   const [description, setDescription] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!name.trim()) {
       setNameError("Tên nông trại là bắt buộc.");
@@ -27,19 +29,32 @@ export default function NewFarmPage() {
       return;
     }
 
-    const farmId = `f${Date.now()}`;
-    addFarm({
-      id: farmId,
-      name: name.trim(),
-      location: location.trim() || "Chưa cập nhật",
-      ownerId: loggedInUser?.id ?? "u1",
-      createdAt: new Date().toISOString(),
-      status: "active",
-      description: description.trim() || undefined,
-    });
-    addToast({ type: "success", message: `Đã tạo nông trại ${name.trim()}` });
-    setCurrentFarmId(farmId);
-    router.push(`/farms/${farmId}`);
+    setSubmitting(true);
+    try {
+      const ownerUserId = loggedInUser?.id ? Number(loggedInUser.id.replace(/\D/g, "")) : undefined;
+      const result = await apiCreateFarm(name.trim(), location.trim() || "Chưa cập nhật", ownerUserId);
+
+      if (result?.ok && result.farmId) {
+        addFarm({
+          id: result.farmId,
+          name: name.trim(),
+          location: location.trim() || "Chưa cập nhật",
+          ownerId: loggedInUser?.id ?? "u1",
+          createdAt: new Date().toISOString(),
+          status: "active",
+          description: description.trim() || undefined,
+        });
+        addToast({ type: "success", message: `Đã tạo nông trại ${name.trim()}` });
+        setCurrentFarmId(result.farmId);
+        router.push(`/farms/${result.farmId}`);
+      } else {
+        setFormError("Không thể tạo nông trại. Vui lòng thử lại.");
+      }
+    } catch {
+      setFormError("Lỗi kết nối server. Vui lòng thử lại.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -72,7 +87,7 @@ export default function NewFarmPage() {
           </div>
           <div className="flex justify-end gap-2">
             <button type="button" className="btn-secondary" onClick={() => router.back()}>Hủy</button>
-            <button type="submit" className="btn-primary" disabled={!name.trim()}>Lưu nông trại</button>
+            <button type="submit" className="btn-primary" disabled={!name.trim() || submitting}>{submitting ? "Đang lưu..." : "Lưu nông trại"}</button>
           </div>
         </form>
       </div>

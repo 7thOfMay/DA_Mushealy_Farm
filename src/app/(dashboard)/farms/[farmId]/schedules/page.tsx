@@ -6,6 +6,7 @@ import { Topbar } from "@/components/layout/Topbar";
 import { useAppStore } from "@/lib/store";
 import { Badge, EmptyState, FormErrorBanner, InlineFieldError } from "@/components/shared/index";
 import { cn } from "@/lib/utils";
+import { apiCreateSchedule, apiDeleteSchedule, apiUpdateSchedule } from "@/lib/api/client";
 import type { RepeatType, Schedule, ScheduleAction, ScheduleType, SensorType } from "@/types";
 import { CalendarClock, Clock3, Gauge, Hand, Plus, Power, Repeat, Trash2, X } from "lucide-react";
 
@@ -98,14 +99,17 @@ export default function FarmSchedulesPage() {
   const selectedSchedule = visibleSchedules.find((item) => item.id === selectedId) ?? visibleSchedules[0] ?? null;
   const daySchedules = visibleSchedules.filter((item) => item.date === selectedDate);
 
-  const toggleActive = (id: string) => {
+  const toggleActive = async (id: string) => {
+    const target = scheduleItems.find((item) => item.id === id);
+    try { await apiUpdateSchedule(id, undefined, undefined, undefined, undefined, undefined, !target?.isActive); } catch {}
     toggleSchedule(id);
   };
 
-  const handleDeleteSchedule = (scheduleId: string) => {
+  const handleDeleteSchedule = async (scheduleId: string) => {
     const target = scheduleItems.find((item) => item.id === scheduleId);
     if (!target) return;
 
+    try { await apiDeleteSchedule(scheduleId); } catch {}
     deleteSchedule(scheduleId);
     if (selectedId === scheduleId) {
       setSelectedId(null);
@@ -140,7 +144,7 @@ export default function FarmSchedulesPage() {
     setCreatorFieldErrors({ name: null, gardenId: null, deviceId: null, duration: null });
   };
 
-  const submitSchedule = () => {
+  const submitSchedule = async () => {
     const nextErrors: Record<"name" | "gardenId" | "deviceId" | "duration", string | null> = {
       name: name.trim() ? null : "Tên lịch trình là bắt buộc.",
       gardenId: gardenId ? null : "Bạn cần chọn khu vườn.",
@@ -183,8 +187,17 @@ export default function FarmSchedulesPage() {
     end.setHours(h + endHour, m + endMinute, 0, 0);
     const endTime = `${end.getHours().toString().padStart(2, "0")}:${end.getMinutes().toString().padStart(2, "0")}`;
 
+    let serverId: string | undefined;
+    try {
+      const result = await apiCreateSchedule(
+        garden.id, device.id, scheduleType,
+        startTime, endTime, days[0] ?? null, duration * 60, null,
+      );
+      serverId = result?.scheduleId;
+    } catch { /* fallback to local */ }
+
     const next: Schedule = {
-      id: `s${Date.now()}`,
+      id: serverId || `s${Date.now()}`,
       name: name.trim(),
       scheduleType,
       deviceId: device.id,

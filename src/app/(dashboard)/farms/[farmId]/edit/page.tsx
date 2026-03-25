@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Topbar } from "@/components/layout/Topbar";
 import { useAppStore } from "@/lib/store";
 import { FormErrorBanner, InlineFieldError } from "@/components/shared";
+import { apiUpdateFarm } from "@/lib/api/client";
 
 export default function EditFarmPage() {
   const { farmId } = useParams<{ farmId: string }>();
@@ -21,6 +22,7 @@ export default function EditFarmPage() {
   const [status, setStatus] = useState<"active" | "paused" | "warning">(farm?.status ?? "active");
   const [formError, setFormError] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   if (!farm) {
     return (
@@ -30,13 +32,19 @@ export default function EditFarmPage() {
     );
   }
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!name.trim()) {
       setNameError("Tên nông trại là bắt buộc.");
       setFormError("Vui lòng nhập tên nông trại trước khi lưu.");
       return;
     }
+
+    setSubmitting(true);
+    try {
+      await apiUpdateFarm(farm.id, name.trim(), location.trim() || "Chưa cập nhật", status);
+    } catch { /* fallback to local */ }
+    setSubmitting(false);
 
     updateFarm(farm.id, {
       name: name.trim(),
@@ -87,7 +95,7 @@ export default function EditFarmPage() {
           </div>
           <div className="flex justify-end gap-2">
             <button type="button" className="btn-secondary" onClick={() => router.back()}>Hủy</button>
-            <button type="submit" className="btn-primary" disabled={!name.trim()}>Lưu thay đổi</button>
+            <button type="submit" className="btn-primary" disabled={!name.trim() || submitting}>{submitting ? "Đang lưu..." : "Lưu thay đổi"}</button>
           </div>
         </form>
       </div>

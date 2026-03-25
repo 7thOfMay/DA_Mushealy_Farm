@@ -9,6 +9,7 @@ import { Badge, EmptyState, FormErrorBanner, InlineFieldError, StatusDot } from 
 import { ToggleSwitch } from "@/components/shared/ToggleSwitch";
 import { RGBController } from "@/components/devices/RGBController";
 import { cn, timeAgo } from "@/lib/utils";
+import { apiCreateDevice, apiUpdateDevice } from "@/lib/api/client";
 import type { DeviceType } from "@/types";
 import {
   Activity,
@@ -113,7 +114,7 @@ export default function FarmDevicesPage() {
     setFieldErrors({ name: null, hardwareId: null, gardenId: null });
   };
 
-  const handleCreateDevice = () => {
+  const handleCreateDevice = async () => {
     const nextErrors: Record<"name" | "hardwareId" | "gardenId", string | null> = {
       name: form.name.trim() ? null : "Tên hiển thị là bắt buộc.",
       hardwareId: form.hardwareId.trim() ? null : "Hardware ID là bắt buộc.",
@@ -131,8 +132,24 @@ export default function FarmDevicesPage() {
       return;
     }
 
+    const deviceTypeIdMap: Record<DeviceType, number> = {
+      sensor_temp: 1, sensor_humidity_air: 2, sensor_humidity_soil: 3, sensor_light: 4,
+      pump: 5, led_rgb: 7,
+    };
+    const isActuator = detailType === "pump" || detailType === "led_rgb";
+
+    let serverId: string | undefined;
+    try {
+      const result = await apiCreateDevice(
+        form.hardwareId.trim(), form.name.trim(),
+        deviceTypeIdMap[detailType] ?? 1, targetGarden.id,
+        form.locationNote.trim() || null, isActuator,
+      );
+      serverId = result?.deviceId;
+    } catch { /* fallback to local */ }
+
     addDevice({
-      id: `d${Date.now()}`,
+      id: serverId || `d${Date.now()}`,
       name: form.name.trim(),
       type: detailType,
       gardenId: targetGarden.id,
@@ -257,7 +274,7 @@ export default function FarmDevicesPage() {
                   </div>
                   <div className="flex items-center justify-between">
                     {isActuator ? (
-                      <ToggleSwitch checked={device.isOn} onChange={() => toggleDevice(device.id)} disabled={device.status !== "online"} size="sm" />
+                      <ToggleSwitch checked={device.isOn} onChange={async () => { try { await apiUpdateDevice(device.id, undefined, device.isOn ? 'offline' : 'online'); } catch {} toggleDevice(device.id); }} disabled={device.status !== "online"} size="sm" />
                     ) : (
                       <p className="text-[1.375rem] font-bold text-[#1A2E1F]" style={{ fontFamily: "'DM Mono', monospace" }}>--</p>
                     )}
@@ -314,7 +331,7 @@ export default function FarmDevicesPage() {
                       <td className="px-4 py-3"><StatusDot status={device.status} /></td>
                       <td className="px-4 py-3">
                         {isActuator ? (
-                          <ToggleSwitch checked={device.isOn} onChange={() => toggleDevice(device.id)} disabled={device.status !== "online"} size="sm" />
+                          <ToggleSwitch checked={device.isOn} onChange={async () => { try { await apiUpdateDevice(device.id, undefined, device.isOn ? 'offline' : 'online'); } catch {} toggleDevice(device.id); }} disabled={device.status !== "online"} size="sm" />
                         ) : (
                           <span className="text-[0.8125rem] text-[#5C7A6A]">Giá trị mới nhất</span>
                         )}

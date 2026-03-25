@@ -5,6 +5,7 @@ import { Topbar } from "@/components/layout/Topbar";
 import { Badge } from "@/components/shared/index";
 import { useAppStore } from "@/lib/store";
 import { cn, formatDateTime, timeAgo } from "@/lib/utils";
+import { apiCreateBackup, apiUpdateBackup } from "@/lib/api/client";
 import type { BackupRecord } from "@/types";
 import { DatabaseBackup, Download, HardDrive, RefreshCw, RotateCcw, TriangleAlert } from "lucide-react";
 
@@ -105,6 +106,7 @@ export default function BackupPage() {
       setBackupPayloads(nextPayloads);
 
       addBackupRecord(newRecord);
+      apiCreateBackup("manual", newRecord.fileName ?? "backup.json", null).catch(() => {});
       addLog({
         id: `log_${Date.now()}`,
         actionType: "CONFIG_CHANGE",
@@ -124,6 +126,7 @@ export default function BackupPage() {
       status: "in_progress",
       note: "Dang retry backup...",
     });
+    apiUpdateBackup(record.id, "in_progress").catch(() => {});
 
     window.setTimeout(() => {
       updateBackupRecord(record.id, {

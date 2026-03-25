@@ -10,19 +10,12 @@ import { FormErrorBanner, InlineFieldError } from "@/components/shared";
 import { ValidationFeedback } from "@/components/shared/ValidationFeedback";
 import { isValidEmail } from "@/lib/validation";
 import { getDashboardLandingPath } from "@/lib/localSettings";
-import { authenticateUser } from "@/lib/authProvider";
-
-const DEMO_CREDENTIALS: Record<string, { password: string; userId: string; label: string; role: string }> = {
-  "an.nguyen@nongtech.vn":  { password: "123456", userId: "u1", label: "Admin",     role: "ADMIN"  },
-  "bich.tran@nongtech.vn": { password: "123456", userId: "u2", label: "Nông dân",  role: "FARMER" },
-};
+import { apiLogin } from "@/lib/api/client";
 
 // ── Login Modal ──────────────────────────────────────────────────────────────
 function LoginModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const login  = useAppStore((s) => s.login);
-  const users  = useAppStore((s) => s.users);
-  const userPasswords = useAppStore((s) => s.userPasswords);
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -31,12 +24,6 @@ function LoginModal({ onClose }: { onClose: () => void }) {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
-
-  const fillDemo = (em: string) => {
-    setEmail(em);
-    setPassword(DEMO_CREDENTIALS[em].password);
-    setError("");
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,18 +54,13 @@ function LoginModal({ onClose }: { onClose: () => void }) {
     }
 
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 700));
-    const authResult = await authenticateUser(
-      {
-        email: normalizedEmail,
-        password,
-      },
-      {
-        users,
-        userPasswords,
-        demoCredentials: DEMO_CREDENTIALS,
-      }
-    );
+    const authResult = await apiLogin(normalizedEmail, password);
+
+    if (!authResult) {
+      setError("Không thể kết nối máy chủ. Vui lòng kiểm tra cấu hình cơ sở dữ liệu.");
+      setLoading(false);
+      return;
+    }
 
     if (authResult.ok && authResult.user) {
       login(authResult.user);
@@ -88,12 +70,6 @@ function LoginModal({ onClose }: { onClose: () => void }) {
 
     if (authResult.reason === "inactive") {
       router.push(`/pending?email=${encodeURIComponent(normalizedEmail)}`);
-      return;
-    }
-
-    if (authResult.reason === "provider_not_configured") {
-      setError("Auth provider backend chưa được cấu hình. Hãy đặt NEXT_PUBLIC_AUTH_PROVIDER=local hoặc hoàn tất tích hợp backend.");
-      setLoading(false);
       return;
     }
 
@@ -127,22 +103,6 @@ function LoginModal({ onClose }: { onClose: () => void }) {
         <div className="px-6 pb-6">
           <h2 className="text-[1.375rem] font-bold text-[#1A2E1F] mb-0.5">Chào mừng trở lại</h2>
           <p className="text-[0.8125rem] text-[#5C7A6A] mb-5">Đăng nhập để quản lý nông trại của bạn</p>
-
-          {/* Demo buttons */}
-          <div className="flex gap-2 mb-5">
-            <p className="text-[0.625rem] font-semibold uppercase tracking-wider text-[#5C7A6A] self-center shrink-0">Demo:</p>
-            {Object.entries(DEMO_CREDENTIALS).map(([em, d]) => (
-              <button key={em} onClick={() => fillDemo(em)}
-                className="flex-1 py-1.5 rounded-[8px] border text-[0.6875rem] font-semibold transition-all hover:scale-[1.02]"
-                style={{
-                  background: email === em ? "#1B4332" : "#F4F8F5",
-                  color: email === em ? "white" : "#1B4332",
-                  borderColor: email === em ? "#1B4332" : "#D1E8DC",
-                }}>
-                {d.role === "ADMIN" ? "👑 Admin" : "🌾 Nông dân"}
-              </button>
-            ))}
-          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>

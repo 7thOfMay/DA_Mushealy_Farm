@@ -6,7 +6,6 @@ import { CatalogManager } from "@/components/management/CatalogManager";
 import { DeleteGuard } from "@/components/management/DeleteGuard";
 import { ErrorState } from "@/components/shared/ErrorStates";
 import { useAppStore } from "@/lib/store";
-import { isDemoDataEnabled } from "@/lib/seedData";
 import { SETTINGS_KEY, defaultLocalSettings, type DashboardLanding, type LocalSettings } from "@/lib/localSettings";
 
 export default function SettingsPage() {
@@ -203,7 +202,7 @@ export default function SettingsPage() {
         <div className="card p-6 space-y-3">
           <h2 className="font-semibold text-[#1A2E1F] text-[1rem]">Quản lý dữ liệu runtime</h2>
           <p className="text-[0.8125rem] text-[#5C7A6A]">
-            Chế độ seed hiện tại: {isDemoDataEnabled ? "Demo data" : "Minimal mode"}. Dữ liệu vận hành đang được tự động lưu trên trình duyệt.
+            Dữ liệu vận hành được tải từ cơ sở dữ liệu MySQL. Có thể xuất/nhập dữ liệu runtime dưới dạng JSON.
           </p>
           <div className="flex flex-wrap gap-2">
             <button

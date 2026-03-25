@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Topbar } from "@/components/layout/Topbar";
 import { useAppStore } from "@/lib/store";
 import { FormErrorBanner, InlineFieldError } from "@/components/shared";
+import { apiCreateGarden } from "@/lib/api/client";
 import type { PlantType } from "@/types";
 
 const colorMap: Record<PlantType, string> = {
@@ -33,6 +34,7 @@ export default function NewGardenPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
   const [areaError, setAreaError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const plantInfo = useMemo(() => plantTypeInfos.find((item) => item.id === plantType), [plantType, plantTypeInfos]);
 
@@ -40,7 +42,7 @@ export default function NewGardenPage() {
     return <div><Topbar title="Tạo khu vườn" subtitle="Không tìm thấy nông trại" /></div>;
   }
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     const nextNameError = name.trim() ? null : "Tên khu vườn là bắt buộc.";
     const nextAreaError = areaM2 > 0 ? null : "Diện tích phải lớn hơn 0.";
@@ -52,8 +54,18 @@ export default function NewGardenPage() {
       return;
     }
 
-    const id = `g${Date.now()}`;
     const gardenName = name.trim();
+    const plantTypeMap: Record<string, number> = { CAI_XANH: 1, CA_CHUA: 2, NHA_DAM: 3 };
+
+    setSubmitting(true);
+    let serverId: string | undefined;
+    try {
+      const result = await apiCreateGarden(farmId, gardenName, plantTypeMap[plantType] ?? null, areaM2, description.trim() || null);
+      serverId = result?.gardenId;
+    } catch { /* fallback to local */ }
+    setSubmitting(false);
+
+    const id = serverId || `g${Date.now()}`;
     addGarden({
       id,
       farmId,
@@ -143,7 +155,7 @@ export default function NewGardenPage() {
           </div>
           <div className="flex justify-end gap-2">
             <button type="button" className="btn-secondary" onClick={() => router.back()}>Hủy</button>
-            <button type="submit" className="btn-primary" disabled={!name.trim()}>Lưu khu vườn</button>
+            <button type="submit" className="btn-primary" disabled={!name.trim() || submitting}>{submitting ? "Đang lưu..." : "Lưu khu vườn"}</button>
           </div>
         </form>
       </div>

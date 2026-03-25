@@ -124,9 +124,18 @@ function saveUserPasswords(passwords: Record<string, string>) {
 function loadLoggedInUser(): User | null {
   if (typeof window === "undefined") return null;
   try {
-    const userId = window.localStorage.getItem(SESSION_USER_ID_STORAGE_KEY);
-    if (!userId) return null;
-    return initialRuntimeSnapshot.users.find((user) => user.id === userId) ?? null;
+    const raw = window.localStorage.getItem(SESSION_USER_ID_STORAGE_KEY);
+    if (!raw) return null;
+    // Try parsing as full user object first, then fall back to ID lookup
+    try {
+      const parsed = JSON.parse(raw) as User;
+      if (parsed && typeof parsed === "object" && parsed.id && parsed.email) {
+        return parsed;
+      }
+    } catch {
+      // Legacy format: plain user ID string — can't resolve without mock data
+    }
+    return null;
   } catch {
     return null;
   }
@@ -135,22 +144,18 @@ function loadLoggedInUser(): User | null {
 function saveLoggedInUserId(user: User | null) {
   if (typeof window === "undefined") return;
   if (user) {
-    window.localStorage.setItem(SESSION_USER_ID_STORAGE_KEY, user.id);
+    window.localStorage.setItem(SESSION_USER_ID_STORAGE_KEY, JSON.stringify(user));
     return;
   }
   window.localStorage.removeItem(SESSION_USER_ID_STORAGE_KEY);
 }
 
 function loadCurrentFarmId(): string | null {
-  if (typeof window === "undefined") return initialRuntimeSnapshot.farms[0]?.id ?? null;
+  if (typeof window === "undefined") return null;
   try {
-    const farmId = window.localStorage.getItem(CURRENT_FARM_STORAGE_KEY);
-    if (farmId && initialRuntimeSnapshot.farms.some((farm) => farm.id === farmId)) {
-      return farmId;
-    }
-    return initialRuntimeSnapshot.farms[0]?.id ?? null;
+    return window.localStorage.getItem(CURRENT_FARM_STORAGE_KEY) ?? null;
   } catch {
-    return initialRuntimeSnapshot.farms[0]?.id ?? null;
+    return null;
   }
 }
 
