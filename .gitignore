@@ -27,6 +27,11 @@ yarn-error.log*
 
 # local env files
 .env*.local
+.env
+
+# gateway
+gateway/offline_queue.json
+gateway/__pycache__/
 
 # vercel
 .vercel

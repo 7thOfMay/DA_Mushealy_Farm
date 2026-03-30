@@ -4,7 +4,7 @@
 -- ============================================================
 
 CREATE DATABASE IF NOT EXISTS smart_farm;
-USE smart_farm;
+USE railway;
 
 SET FOREIGN_KEY_CHECKS = 0;
 
