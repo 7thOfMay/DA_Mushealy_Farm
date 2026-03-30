@@ -24,22 +24,20 @@ FEEDS = {
     "v4": "LUX",
     "v5": "GDD",
     "v10": "Pump 1",
-    "v11": "Pump 2",
 }
 
 # --- MAPPING FEED → device_id TRONG DATABASE ---
 # Chỉnh device_id cho khớp với bảng devices trong DB của bạn
 FEED_TO_DEVICE = {
-    "v1": 1,   # Cảm biến nhiệt độ
-    "v2": 2,   # Cảm biến độ ẩm không khí
-    "v3": 3,   # Cảm biến độ ẩm đất
-    "v4": 4,   # Cảm biến ánh sáng
+    "v1": 9,    # Cảm biến nhiệt độ KV1
+    "v2": 10,   # Cảm biến độ ẩm không khí KV1
+    "v3": 11,   # Cảm biến độ ẩm đất KV1
+    "v4": 12,   # Cảm biến ánh sáng KV1
 }
 
 # --- MAPPING device_id → FEED cho điều khiển (actuator) ---
 DEVICE_TO_FEED = {
-    5: "v10",  # Pump 1
-    6: "v11",  # Pump 2
+    13: "v10",  # Máy bơm KV1
 }
 
 # --- CẤU HÌNH GATEWAY ---
