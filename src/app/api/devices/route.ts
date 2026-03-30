@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { isDbConfigured } from "@/lib/db";
+
+export const dynamic = "force-dynamic";
 import { fetchDevices, fetchDevicesByZoneId, insertDevice, updateDevice, deleteDevice } from "@/lib/api/queries";
 
 export async function GET(request: Request) {

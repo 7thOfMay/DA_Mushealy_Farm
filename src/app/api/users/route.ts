@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
 import { isDbConfigured } from "@/lib/db";
 import { fetchUsers, insertUser, updateUser, deleteUser } from "@/lib/api/queries";
 import { createHash } from "crypto";

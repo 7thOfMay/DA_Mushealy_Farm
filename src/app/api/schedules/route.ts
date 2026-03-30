@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
 import { isDbConfigured } from "@/lib/db";
 import { fetchSchedules, insertSchedule, updateSchedule, deleteSchedule } from "@/lib/api/queries";
 

@@ -29,6 +29,31 @@ export async function query<T extends RowDataPacket[]>(
   sql: string,
   params?: (string | number | boolean | null)[],
 ): Promise<T> {
+  const maxRetries = 2;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const [rows] = await getPool().execute<T>(sql, params);
+      return rows;
+    } catch (err: unknown) {
+      const code = (err as { code?: string }).code;
+      const isRetryable =
+        code === "ECONNRESET" ||
+        code === "ECONNREFUSED" ||
+        code === "ETIMEDOUT" ||
+        code === "PROTOCOL_CONNECTION_LOST" ||
+        code === "ER_CON_COUNT_ERROR";
+      if (isRetryable && attempt < maxRetries) {
+        // Destroy stale pool and retry with a fresh one
+        if (pool) {
+          try { await pool.end(); } catch { /* ignore */ }
+          pool = null;
+        }
+        continue;
+      }
+      throw err;
+    }
+  }
+  // unreachable but satisfies TS
   const [rows] = await getPool().execute<T>(sql, params);
   return rows;
 }
