@@ -1,4 +1,7 @@
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # --- 1. CẤU HÌNH SERVER OHSTEM ---
 MQTT_BROKER = os.getenv("MQTT_BROKER", "mqtt.ohstem.vn")
