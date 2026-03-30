@@ -9,7 +9,7 @@ import { Badge } from "@/components/shared/index";
 import { ErrorState } from "@/components/shared/ErrorStates";
 import { ArrowRight, Droplet, Leaf, MapPin, Sun, Thermometer } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { buildFallbackSensorSummary } from "@/lib/gardenFallback";
+
 
 const plantMetrics = [
   { key: "optimalTemp", label: "Nhiệt độ", unit: "°C", icon: Thermometer, max: 40 },
@@ -58,8 +58,7 @@ export default function GardensPage() {
         {activeTab === "zones" && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {gardens.map((garden) => {
-              const sensors = sensorSummaries.find((s) => s.gardenId === garden.id)
-                ?? buildFallbackSensorSummary(garden.id, garden.plantType);
+              const sensors = sensorSummaries.find((s) => s.gardenId === garden.id) ?? null;
               const detailHref = garden.farmId ? `/farms/${garden.farmId}/gardens/${garden.id}` : `/gardens/${garden.id}`;
               return (
                 <div key={garden.id} className="group">

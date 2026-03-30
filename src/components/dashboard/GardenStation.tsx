@@ -10,7 +10,7 @@ import type { Garden, GardenSensorSummary } from "@/types";
 
 interface GardenStationProps {
   garden: Garden;
-  sensors: GardenSensorSummary;
+  sensors: GardenSensorSummary | null;
 }
 
 const statusColors = {
@@ -32,8 +32,29 @@ export function GardenStation({ garden, sensors }: GardenStationProps) {
   const addToast = useAppStore((s) => s.addToast);
 
   const pump = devices.find((d) => d.gardenId === garden.id && d.type === "pump");
-  const soilPct = Math.min(Math.max(sensors.humiditySoil, 0), 100);
   const crop = cropTypes.find((item) => item.id === garden.cropTypeId);
+
+  if (!sensors) {
+    return (
+      <div className="bg-white border border-[#E2E8E4] rounded-[12px] shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden">
+        <div className="h-1 w-full" style={{ backgroundColor: statusColors[garden.status] }} />
+        <div className="p-5">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h3 className="font-bold text-[1.0625rem] text-[#1A2E1F] leading-tight">{garden.name}</h3>
+              <span className="inline-block mt-1 text-[0.6875rem] font-bold uppercase tracking-wide px-2 py-0.5 rounded-[4px]" style={{ backgroundColor: garden.color + "18", color: garden.color }}>{garden.plantLabel}</span>
+            </div>
+          </div>
+          <div className="text-center py-8">
+            <p className="text-[0.875rem] text-[#5C7A6A]">Chưa có dữ liệu cảm biến</p>
+            <p className="text-[0.75rem] text-[#5C7A6A]/60 mt-1">Kết nối thiết bị để bắt đầu giám sát</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const soilPct = Math.min(Math.max(sensors.humiditySoil, 0), 100);
 
   const getSensorState = (value: number, min?: number, max?: number) => {
     if (min === undefined || max === undefined) return "normal" as const;

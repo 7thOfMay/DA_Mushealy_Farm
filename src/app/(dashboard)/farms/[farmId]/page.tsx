@@ -5,7 +5,7 @@ import { notFound, useParams } from "next/navigation";
 import { Topbar } from "@/components/layout/Topbar";
 import { Badge, EmptyState } from "@/components/shared/index";
 import { useAppStore } from "@/lib/store";
-import { buildFallbackSensorSummary } from "@/lib/gardenFallback";
+
 import { GardenStation } from "@/components/dashboard/GardenStation";
 import { Cpu, Sprout, AlertTriangle, Activity, ShieldAlert } from "lucide-react";
 
@@ -78,8 +78,7 @@ export default function FarmDetailPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {farmGardens.map((garden) => {
-                const summary = sensorSummaries.find((item) => item.gardenId === garden.id)
-                  ?? buildFallbackSensorSummary(garden.id, garden.plantType);
+                const summary = sensorSummaries.find((item) => item.gardenId === garden.id) ?? null;
                 return <GardenStation key={garden.id} garden={garden} sensors={summary} />;
               })}
             </div>

@@ -49,19 +49,19 @@ export default function FarmGardenDetailPage() {
   const unresolvedAlerts = gardenAlerts.filter((alert) => alert.status !== "RESOLVED");
   const gardenLogs = logs.filter((log) => log.gardenId === garden.id).slice(0, 8);
 
-  const metrics = [
+  const metrics = sensor ? [
     { label: "Nhiệt độ", value: sensor.temperature, unit: "°C", icon: Thermometer },
     { label: "Độ ẩm KK", value: sensor.humidityAir, unit: "%", icon: Droplets },
     { label: "Độ ẩm đất", value: sensor.humiditySoil, unit: "%", icon: Droplet },
     { label: "Ánh sáng", value: (sensor.light / 1000).toFixed(1), unit: "klux", icon: Sun },
-  ];
+  ] : [];
 
-  const currentReadings: Record<string, number> = {
+  const currentReadings: Record<string, number> = sensor ? {
     temperature: sensor.temperature,
     humidity_soil: sensor.humiditySoil,
     humidity_air: sensor.humidityAir,
     light_hours: sensor.light,
-  };
+  } : {};
 
   const thresholdSeverity = cropType?.thresholds.reduce<"normal" | "warning" | "critical">((acc, threshold) => {
     const raw = currentReadings[threshold.sensor_type];
@@ -114,7 +114,7 @@ export default function FarmGardenDetailPage() {
           </div>
 
           <div className="mt-4 pt-4 border-t border-[#E2E8E4] flex items-center justify-between flex-wrap gap-2">
-            <p className="text-[0.75rem] text-[#5C7A6A]">Cập nhật cảm biến: {timeAgo(sensor.updatedAt)}</p>
+            <p className="text-[0.75rem] text-[#5C7A6A]">Cập nhật cảm biến: {sensor ? timeAgo(sensor.updatedAt) : "Chưa có dữ liệu"}</p>
             <div className="flex gap-2">
               <Link href={`/farms/${farm.id}/devices`} className="btn-secondary">Thiết bị</Link>
               <Link href={`/farms/${farm.id}/schedules`} className="btn-secondary">Lịch trình</Link>

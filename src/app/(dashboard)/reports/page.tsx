@@ -8,7 +8,8 @@ import { ReportPreview } from "@/components/reports/ReportPreview";
 import { ErrorState } from "@/components/shared/ErrorStates";
 import { useAppStore } from "@/lib/store";
 import { getManagedFarmers, getVisibleFarmsForViewer } from "@/lib/dataScope";
-import { buildFallbackSensorSummary } from "@/lib/gardenFallback";
+import type { GardenSensorSummary } from "@/types";
+
 import { cn } from "@/lib/utils";
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -61,10 +62,9 @@ export default function ReportsPage() {
   const humiditySoilSeries = mapSeriesByFarm(humiditySoilChartData);
   const lightSeries = mapSeriesByFarm(lightChartData);
 
-  const summaries = farmGardens.map((garden) => (
-    sensorSummaries.find((summary) => summary.gardenId === garden.id)
-      ?? buildFallbackSensorSummary(garden.id, garden.plantType)
-  ));
+  const summaries = farmGardens
+    .map((garden) => sensorSummaries.find((summary) => summary.gardenId === garden.id) ?? null)
+    .filter((s): s is GardenSensorSummary => s !== null);
 
   const avgTemperature = summaries.length
     ? summaries.reduce((sum, summary) => sum + summary.temperature, 0) / summaries.length
@@ -91,17 +91,19 @@ export default function ReportsPage() {
     { label: "Ngày tăng trưởng", value: avgGrowthDays.toFixed(0), unit: "ngày", icon: Sun, color: "#F39C12" },
   ];
 
-  const comparisonData = farmGardens.map((garden) => {
-    const summary = sensorSummaries.find((item) => item.gardenId === garden.id)
-      ?? buildFallbackSensorSummary(garden.id, garden.plantType);
-    return {
-      garden: garden.plantLabel,
-      temp: summary.temperature,
-      humidity: summary.humiditySoil,
-      light: Number((summary.light / 1000).toFixed(1)),
-      color: garden.color,
-    };
-  });
+  const comparisonData = farmGardens
+    .map((garden) => {
+      const summary = sensorSummaries.find((item) => item.gardenId === garden.id);
+      if (!summary) return null;
+      return {
+        garden: garden.plantLabel,
+        temp: summary.temperature,
+        humidity: summary.humiditySoil,
+        light: Number((summary.light / 1000).toFixed(1)),
+        color: garden.color,
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null);
 
   const alertTypesData = [
     { name: "Nhiệt độ", value: farmAlerts.filter((alert) => alert.sensorType === "temperature").length, color: "#C0392B" },
