@@ -3,7 +3,7 @@ import time
 import json
 import threading
 from datetime import datetime
-from Adafruit_IO import MQTTClient
+import paho.mqtt.client as mqtt
 import mysql.connector
 from mysql.connector import Error as MySQLError
 import config
@@ -150,11 +150,11 @@ def sync_offline_queue():
 
 
 # ============================================================
-# COMMAND POLLING - Lấy lệnh điều khiển từ DB gửi lên Adafruit
+# COMMAND POLLING - Lấy lệnh điều khiển từ DB gửi lên OhStem
 # ============================================================
 
 def poll_device_commands(mqtt_client):
-    """Poll bảng device_commands, gửi lệnh pending lên Adafruit IO."""
+    """Poll bảng device_commands, gửi lệnh pending lên OhStem MQTT."""
     while True:
         try:
             conn = get_db()
@@ -187,7 +187,7 @@ def poll_device_commands(mqtt_client):
                     )
                     continue
 
-                # Xác định payload gửi lên Adafruit IO
+                # Xác định payload
                 params = cmd["parameters"]
                 if isinstance(params, str):
                     params = json.loads(params)
@@ -201,17 +201,18 @@ def poll_device_commands(mqtt_client):
                 else:
                     payload_value = "1"
 
-                # Gửi lên Adafruit IO
+                # Gửi lên OhStem MQTT
+                topic = f"{config.MQTT_USERNAME}/feeds/{feed_key}"
                 try:
-                    mqtt_client.publish(feed_key, payload_value)
-                    print(f"[CMD] Đã gửi: {feed_key} = {payload_value} (command_id={cmd['command_id']})")
+                    mqtt_client.publish(topic, payload_value)
+                    print(f"[CMD] Đã gửi: {topic} = {payload_value} (command_id={cmd['command_id']})")
                     cursor.execute(
                         "UPDATE device_commands SET status = 'sent', executed_at = %s "
                         "WHERE command_id = %s",
                         (datetime.now(), cmd["command_id"]),
                     )
                 except Exception as e:
-                    print(f"[CMD] Lỗi gửi Adafruit: {e}")
+                    print(f"[CMD] Lỗi gửi MQTT: {e}")
                     cursor.execute(
                         "UPDATE device_commands SET status = 'failed', executed_at = %s "
                         "WHERE command_id = %s",
@@ -230,34 +231,37 @@ def poll_device_commands(mqtt_client):
 
 
 # ============================================================
-# ADAFRUIT IO MQTT CALLBACKS
+# PAHO MQTT CALLBACKS (OhStem)
 # ============================================================
 
-def connected(client):
-    print("[MQTT] Kết nối Adafruit IO thành công!")
-    print("-" * 50)
-    for feed_key in config.AIO_FEED_ID.keys():
-        client.subscribe(feed_key)
-        print(f"  Subscribed: {config.AIO_FEED_ID[feed_key]} (Key: {feed_key})")
-    print("-" * 50)
-
-    # Thử kết nối DB khi MQTT sẵn sàng
-    get_db()
-
-
-def subscribe(client, userdata, mid, granted_qos):
-    print("[MQTT] Subscribe thành công")
-
-
-def disconnected(client):
-    print("[MQTT] Mất kết nối Adafruit IO!")
-    # Không exit ngay, thử reconnect
-    time.sleep(5)
+def on_connect(client, userdata, flags, rc):
+    if rc == 0:
+        print("[MQTT] Kết nối OhStem thành công!")
+        print("-" * 50)
+        for feed_key, name in config.FEEDS.items():
+            topic = f"{config.MQTT_USERNAME}/feeds/{feed_key}"
+            client.subscribe(topic)
+            print(f"  Subscribed: {name} ({topic})")
+        print("-" * 50)
+        # Thử kết nối DB khi MQTT sẵn sàng
+        get_db()
+    else:
+        print(f"[MQTT] Lỗi kết nối, mã: {rc}")
 
 
-def message(client, feed_id, payload):
-    """Xử lý message từ Adafruit IO."""
-    name = config.AIO_FEED_ID.get(feed_id, feed_id)
+def on_disconnect(client, userdata, rc):
+    print(f"[MQTT] Mất kết nối OhStem! (rc={rc})")
+    # paho tự reconnect nếu loop_forever()
+
+
+def on_message(client, userdata, msg):
+    """Xử lý message từ OhStem MQTT."""
+    # Topic format: SmartFarm/feeds/v1 → lấy feed_key = "v1"
+    parts = msg.topic.split("/")
+    feed_id = parts[-1] if len(parts) >= 3 else msg.topic
+    payload = msg.payload.decode("utf-8", errors="ignore")
+
+    name = config.FEEDS.get(feed_id, feed_id)
     print(f"[{name}] ({feed_id}): {payload}")
 
     # ----- SENSOR DATA: lưu vào DB -----
@@ -272,13 +276,10 @@ def message(client, feed_id, payload):
         return
 
     # ----- ACTUATOR FEEDBACK: cập nhật trạng thái -----
-    # Khi thiết bị điều khiển phản hồi (VD: pump đã bật/tắt)
     if feed_id in ("v10", "v11"):
-        # Tìm device_id từ DEVICE_TO_FEED (reverse lookup)
         for dev_id, fkey in config.DEVICE_TO_FEED.items():
             if fkey == feed_id:
                 update_device_status(dev_id, "online")
-                # Cập nhật command đã executed
                 conn = get_db()
                 if conn:
                     try:
@@ -303,15 +304,15 @@ def message(client, feed_id, payload):
 def main():
     print("=" * 50)
     print("  NôngTech IoT Gateway")
-    print("  Adafruit IO ↔ Railway MySQL")
+    print("  OhStem MQTT ↔ Railway MySQL")
     print("=" * 50)
 
-    # Khởi tạo MQTT Client
-    mqtt_client = MQTTClient(config.AIO_USERNAME, config.AIO_KEY)
-    mqtt_client.on_connect = connected
-    mqtt_client.on_disconnect = disconnected
-    mqtt_client.on_message = message
-    mqtt_client.on_subscribe = subscribe
+    # Khởi tạo paho MQTT Client
+    mqtt_client = mqtt.Client()
+    mqtt_client.username_pw_set(config.MQTT_USERNAME, config.MQTT_PASSWORD)
+    mqtt_client.on_connect = on_connect
+    mqtt_client.on_disconnect = on_disconnect
+    mqtt_client.on_message = on_message
 
     # Chạy thread poll lệnh điều khiển từ DB
     cmd_thread = threading.Thread(target=poll_device_commands, args=(mqtt_client,), daemon=True)
@@ -319,13 +320,15 @@ def main():
     print("[GATEWAY] Command polling thread đã khởi động")
 
     try:
-        mqtt_client.connect()
-        mqtt_client.loop_blocking()
+        mqtt_client.connect(config.MQTT_BROKER, config.MQTT_PORT, keepalive=60)
+        print(f"[MQTT] Đang kết nối {config.MQTT_BROKER}:{config.MQTT_PORT} ...")
+        mqtt_client.loop_forever()
     except KeyboardInterrupt:
         print("\n[GATEWAY] Đang dừng...")
     except Exception as e:
         print(f"[GATEWAY] Lỗi: {e}")
     finally:
+        mqtt_client.disconnect()
         global db_connection
         if db_connection and db_connection.is_connected():
             db_connection.close()

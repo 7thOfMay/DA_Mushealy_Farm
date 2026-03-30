@@ -1,2 +1,2 @@
-adafruit-io>=2.7
+paho-mqtt>=1.6
 mysql-connector-python>=8.0
