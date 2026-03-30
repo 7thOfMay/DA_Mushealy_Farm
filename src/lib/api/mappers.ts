@@ -206,6 +206,8 @@ export interface DeviceRow extends RowDataPacket {
   is_controllable: 0 | 1;
   status: string;
   last_updated: Date | null;
+  last_value: number | null;
+  unit: string | null;
 }
 
 export interface AlertRow extends RowDataPacket {
@@ -402,6 +404,8 @@ export function mapDevice(row: DeviceRow): Device {
     status: row.status as Device["status"],
     isOn: row.status === "online",
     lastUpdated: toISOString(row.last_updated),
+    lastValue: row.last_value ?? undefined,
+    lastUnit: row.unit ?? undefined,
     locationNote: row.install_location ?? undefined,
   };
 }

@@ -276,7 +276,10 @@ export default function FarmDevicesPage() {
                     {isActuator ? (
                       <ToggleSwitch checked={device.isOn} onChange={async () => { try { await apiUpdateDevice(device.id, undefined, device.isOn ? 'offline' : 'online'); } catch {} toggleDevice(device.id); }} disabled={device.status !== "online"} size="sm" />
                     ) : (
-                      <p className="text-[1.375rem] font-bold text-[#1A2E1F]" style={{ fontFamily: "'DM Mono', monospace" }}>--</p>
+                      <p className="text-[1.375rem] font-bold text-[#1A2E1F]" style={{ fontFamily: "'DM Mono', monospace" }}>
+                        {device.lastValue != null ? device.lastValue : "--"}
+                        {device.lastValue != null && device.lastUnit && <span className="text-[0.75rem] text-[#5C7A6A] ml-1">{device.lastUnit}</span>}
+                      </p>
                     )}
                     <Badge variant={device.status === "online" ? "ok" : device.status === "error" ? "danger" : "default"}>
                       {device.status}

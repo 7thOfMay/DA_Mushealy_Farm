@@ -110,6 +110,8 @@ export interface Device {
   status: "online" | "offline" | "error";
   isOn: boolean;
   lastUpdated: string;
+  lastValue?: number;
+  lastUnit?: string;
   lastSeenAt?: string;
   locationNote?: string;
   description?: string;

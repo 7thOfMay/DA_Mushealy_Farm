@@ -2,7 +2,14 @@ import sys
 import time
 import json
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
+
+
+def utcnow():
+    """Trả về thời gian UTC (khớp với MySQL Railway)."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 import paho.mqtt.client as mqtt
 import mysql.connector
 from mysql.connector import Error as MySQLError
@@ -54,7 +61,7 @@ def save_sensor_data(device_id, value):
         cursor.execute(
             "INSERT INTO sensor_data (device_id, value, recorded_at, synced) "
             "VALUES (%s, %s, %s, TRUE)",
-            (device_id, value, datetime.now()),
+            (device_id, value, utcnow()),
         )
         conn.commit()
         cursor.close()
@@ -75,7 +82,7 @@ def update_device_status(device_id, status="online"):
         cursor = conn.cursor()
         cursor.execute(
             "UPDATE devices SET status = %s, last_updated = %s WHERE device_id = %s",
-            (status, datetime.now(), device_id),
+            (status, utcnow(), device_id),
         )
         conn.commit()
         cursor.close()
@@ -92,7 +99,7 @@ def save_to_offline_queue(device_id, value):
     record = {
         "device_id": device_id,
         "value": float(value),
-        "recorded_at": datetime.now().isoformat(),
+        "recorded_at": utcnow().isoformat(),
     }
     try:
         try:
@@ -135,7 +142,7 @@ def sync_offline_queue():
                     record["device_id"],
                     json.dumps(record),
                     record["recorded_at"],
-                    datetime.now(),
+                    utcnow(),
                 ),
             )
             cursor.execute(
@@ -188,7 +195,7 @@ def poll_device_commands(mqtt_client):
                     cursor.execute(
                         "UPDATE device_commands SET status = 'failed', executed_at = %s "
                         "WHERE command_id = %s",
-                        (datetime.now(), cmd["command_id"]),
+                        (utcnow(), cmd["command_id"]),
                     )
                     continue
 
@@ -214,14 +221,14 @@ def poll_device_commands(mqtt_client):
                     cursor.execute(
                         "UPDATE device_commands SET status = 'sent', executed_at = %s "
                         "WHERE command_id = %s",
-                        (datetime.now(), cmd["command_id"]),
+                        (utcnow(), cmd["command_id"]),
                     )
                 except Exception as e:
                     print(f"[CMD] Lỗi gửi MQTT: {e}")
                     cursor.execute(
                         "UPDATE device_commands SET status = 'failed', executed_at = %s "
                         "WHERE command_id = %s",
-                        (datetime.now(), cmd["command_id"]),
+                        (utcnow(), cmd["command_id"]),
                     )
 
             conn.commit()
@@ -298,7 +305,7 @@ def on_message(client, userdata, msg):
                             "UPDATE device_commands SET status = 'executed', executed_at = %s "
                             "WHERE device_id = %s AND status = 'sent' "
                             "ORDER BY issued_at DESC LIMIT 1",
-                            (datetime.now(), dev_id),
+                            (utcnow(), dev_id),
                         )
                         conn.commit()
                         cursor.close()

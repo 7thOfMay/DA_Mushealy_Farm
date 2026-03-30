@@ -148,11 +148,18 @@ export async function fetchGardensByFarmId(farmId: number) {
 export async function fetchDevices() {
   const rows = await query<DeviceRow[]>(`
     SELECT d.device_id, d.device_code, d.device_name, d.device_type_id,
-           dt.type_name, dt.category, d.zone_id, fz.zone_name,
-           d.install_location, d.is_controllable, d.status, d.last_updated
+           dt.type_name, dt.category, dt.unit, d.zone_id, fz.zone_name,
+           d.install_location, d.is_controllable, d.status, d.last_updated,
+           latest_sd.last_value
     FROM devices d
     JOIN device_types dt ON d.device_type_id = dt.device_type_id
     JOIN farm_zones fz ON d.zone_id = fz.zone_id
+    LEFT JOIN (
+      SELECT sd.device_id, sd.value AS last_value
+      FROM sensor_data sd
+      INNER JOIN (SELECT device_id, MAX(recorded_at) AS max_time FROM sensor_data GROUP BY device_id) m
+        ON sd.device_id = m.device_id AND sd.recorded_at = m.max_time
+    ) latest_sd ON d.device_id = latest_sd.device_id
     ORDER BY d.created_at DESC
   `);
   return rows.map(mapDevice);
@@ -161,11 +168,18 @@ export async function fetchDevices() {
 export async function fetchDevicesByZoneId(zoneId: number) {
   const rows = await query<DeviceRow[]>(`
     SELECT d.device_id, d.device_code, d.device_name, d.device_type_id,
-           dt.type_name, dt.category, d.zone_id, fz.zone_name,
-           d.install_location, d.is_controllable, d.status, d.last_updated
+           dt.type_name, dt.category, dt.unit, d.zone_id, fz.zone_name,
+           d.install_location, d.is_controllable, d.status, d.last_updated,
+           latest_sd.last_value
     FROM devices d
     JOIN device_types dt ON d.device_type_id = dt.device_type_id
     JOIN farm_zones fz ON d.zone_id = fz.zone_id
+    LEFT JOIN (
+      SELECT sd.device_id, sd.value AS last_value
+      FROM sensor_data sd
+      INNER JOIN (SELECT device_id, MAX(recorded_at) AS max_time FROM sensor_data GROUP BY device_id) m
+        ON sd.device_id = m.device_id AND sd.recorded_at = m.max_time
+    ) latest_sd ON d.device_id = latest_sd.device_id
     WHERE d.zone_id = ?
     ORDER BY d.created_at DESC
   `, [zoneId]);
