@@ -260,10 +260,10 @@ def on_disconnect(client, userdata, rc):
 
 def on_message(client, userdata, msg):
     """Xử lý message từ OhStem MQTT."""
-    # Topic format: SmartFarm/feeds/v1 → lấy feed_key = "v1"
+    # Topic format: SmartFarm/feeds/V1 → lấy feed_key = "v1" (lowercase)
     topic = msg.topic
     parts = topic.split("/")
-    feed_id = parts[-1] if len(parts) >= 3 else topic
+    feed_id = (parts[-1] if len(parts) >= 3 else topic).lower()
     payload = msg.payload.decode("utf-8", errors="ignore")
 
     name = config.FEEDS.get(feed_id, feed_id)
