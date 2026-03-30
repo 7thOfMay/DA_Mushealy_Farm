@@ -29,6 +29,7 @@ export function formatDateTime(date: Date | string): string {
 export function timeAgo(date: Date | string): string {
   const d = typeof date === "string" ? new Date(date) : date;
   const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 0) return "vừa xong";
   if (diff < 60) return `${Math.floor(diff)} giây trước`;
   if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
   if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`;

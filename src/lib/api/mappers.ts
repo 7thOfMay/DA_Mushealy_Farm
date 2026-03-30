@@ -404,7 +404,7 @@ export function mapDevice(row: DeviceRow): Device {
     status: row.status as Device["status"],
     isOn: row.status === "online",
     lastUpdated: toISOString(row.last_updated),
-    lastValue: row.last_value ?? undefined,
+    lastValue: row.last_value != null ? Number(row.last_value) : undefined,
     lastUnit: row.unit ?? undefined,
     locationNote: row.install_location ?? undefined,
   };
