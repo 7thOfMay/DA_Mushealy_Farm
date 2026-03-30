@@ -20,8 +20,12 @@ def get_db():
     """Lấy hoặc tạo kết nối MySQL tới Railway."""
     global db_connection, db_available
     try:
-        if db_connection and db_connection.is_connected():
-            return db_connection
+        if db_connection:
+            try:
+                if db_connection.is_connected():
+                    return db_connection
+            except Exception:
+                db_connection = None
         db_connection = mysql.connector.connect(
             host=config.DB_HOST,
             port=config.DB_PORT,
@@ -337,9 +341,12 @@ def main():
     finally:
         client.disconnect()
         global db_connection
-        if db_connection and db_connection.is_connected():
-            db_connection.close()
-            print("🔌 Đã đóng kết nối MySQL")
+        try:
+            if db_connection and db_connection.is_connected():
+                db_connection.close()
+                print("🔌 Đã đóng kết nối MySQL")
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
