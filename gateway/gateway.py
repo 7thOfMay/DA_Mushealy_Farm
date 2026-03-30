@@ -13,27 +13,27 @@ def utcnow():
 import paho.mqtt.client as mqtt
 import mysql.connector
 from mysql.connector import Error as MySQLError
+from mysql.connector.pooling import MySQLConnectionPool
 import config
 
 # ============================================================
-# DATABASE HELPERS
+# DATABASE HELPERS  (connection pool — thread-safe)
 # ============================================================
 
-db_connection = None
+db_pool = None
 db_available = False
 
 
-def get_db():
-    """Lấy hoặc tạo kết nối MySQL tới Railway."""
-    global db_connection, db_available
+def _init_pool():
+    """Khởi tạo connection pool (gọi 1 lần)."""
+    global db_pool, db_available
+    if db_pool is not None:
+        return True
     try:
-        if db_connection:
-            try:
-                if db_connection.is_connected():
-                    return db_connection
-            except Exception:
-                db_connection = None
-        db_connection = mysql.connector.connect(
+        db_pool = MySQLConnectionPool(
+            pool_name="gateway",
+            pool_size=3,
+            pool_reset_session=True,
             host=config.DB_HOST,
             port=config.DB_PORT,
             user=config.DB_USER,
@@ -42,11 +42,28 @@ def get_db():
             ssl_disabled=True,
         )
         db_available = True
-        print("[DB] Kết nối Railway MySQL thành công")
-        return db_connection
+        print("[DB] Kết nối Railway MySQL thành công (pool)")
+        return True
     except MySQLError as e:
         db_available = False
         print(f"[DB] Lỗi kết nối: {e}")
+        return False
+
+
+def get_db():
+    """Lấy kết nối từ pool (mỗi thread dùng riêng, trả lại sau)."""
+    global db_available
+    try:
+        if db_pool is None:
+            if not _init_pool():
+                return None
+        conn = db_pool.get_connection()
+        db_available = True
+        return conn
+    except MySQLError as e:
+        db_available = False
+        # Pool chưa sẵn sàng → thử tạo lại
+        print(f"[DB] Lỗi pool: {e}")
         return None
 
 
@@ -71,6 +88,11 @@ def save_sensor_data(device_id, value):
         print(f"  → DB ERROR: {e}")
         save_to_offline_queue(device_id, value)
         return False
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 def update_device_status(device_id, status="online"):
@@ -88,6 +110,11 @@ def update_device_status(device_id, status="online"):
         cursor.close()
     except MySQLError as e:
         print(f"  → DB ERROR (update status): {e}")
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================
@@ -159,6 +186,11 @@ def sync_offline_queue():
         print(f"[SYNC] Đã đồng bộ thành công {synced}/{len(queue)} bản ghi")
     except MySQLError as e:
         print(f"[SYNC] Lỗi: {e}")
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================
@@ -168,6 +200,7 @@ def sync_offline_queue():
 def poll_device_commands(mqtt_client):
     """Poll bảng device_commands, gửi lệnh pending lên OhStem MQTT."""
     while True:
+        conn = None
         try:
             conn = get_db()
             if conn is None:
@@ -238,6 +271,12 @@ def poll_device_commands(mqtt_client):
             print(f"[CMD] DB Error: {e}")
         except Exception as e:
             print(f"[CMD] Error: {e}")
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
         time.sleep(config.COMMAND_POLL_INTERVAL)
 
@@ -261,7 +300,7 @@ def on_connect(client, userdata, flags, rc):
         print("-" * 50)
 
         # Thử kết nối DB khi MQTT sẵn sàng
-        get_db()
+        _init_pool()
     else:
         print(f"❌ Kết nối thất bại. Mã lỗi: {rc}")
 
@@ -311,6 +350,11 @@ def on_message(client, userdata, msg):
                         cursor.close()
                     except MySQLError as e:
                         print(f"  ⚠️ DB ERROR (cmd update): {e}")
+                    finally:
+                        try:
+                            conn.close()
+                        except Exception:
+                            pass
                 break
 
 
@@ -324,12 +368,16 @@ def main():
     print("  OhStem MQTT ↔ Railway MySQL")
     print("=" * 50)
 
+    # Khởi tạo DB pool sớm
+    _init_pool()
+
     # Khởi tạo paho MQTT Client
     client = mqtt.Client()
     client.username_pw_set(config.MQTT_USERNAME, config.MQTT_PASSWORD)
     client.on_connect = on_connect
     client.on_disconnect = on_disconnect
     client.on_message = on_message
+    client.reconnect_delay_set(min_delay=1, max_delay=30)
 
     # Chạy thread poll lệnh điều khiển từ DB
     cmd_thread = threading.Thread(target=poll_device_commands, args=(client,), daemon=True)
@@ -347,13 +395,6 @@ def main():
         print(f"⚠️ Đã xảy ra lỗi hệ thống: {e}")
     finally:
         client.disconnect()
-        global db_connection
-        try:
-            if db_connection and db_connection.is_connected():
-                db_connection.close()
-                print("🔌 Đã đóng kết nối MySQL")
-        except Exception:
-            pass
 
 
 if __name__ == "__main__":
