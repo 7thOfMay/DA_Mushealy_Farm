@@ -1,11 +1,12 @@
 /**
  * Hook to hydrate the Zustand store from the MySQL API.
  * All data comes from the database — no mock/demo fallback.
+ * After initial hydration, polls devices + sensors every POLL_INTERVAL ms.
  */
 
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useAppStore } from "@/lib/store";
 import {
   apiGetFarms,
@@ -22,9 +23,28 @@ import {
   apiHealthCheck,
 } from "@/lib/api/client";
 
+const POLL_INTERVAL = 10_000; // 10 seconds
+
 export function useApiHydration() {
   const hydrated = useRef(false);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const refreshLiveData = useCallback(async () => {
+    const [devices, sensorSummaries, alerts] = await Promise.all([
+      apiGetDevices(),
+      apiGetSensorSummaries(),
+      apiGetAlerts(),
+    ]);
+    const patch: Record<string, unknown> = {};
+    if (devices) patch.devices = devices;
+    if (sensorSummaries) patch.sensorSummaries = sensorSummaries;
+    if (alerts) patch.alerts = alerts;
+    if (Object.keys(patch).length > 0) {
+      useAppStore.setState(patch);
+    }
+  }, []);
 
   useEffect(() => {
     if (hydrated.current) return;
@@ -90,8 +110,15 @@ export function useApiHydration() {
       }
 
       setStatus("ready");
+
+      // Start polling for live data
+      pollRef.current = setInterval(refreshLiveData, POLL_INTERVAL);
     })();
-  }, []);
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [refreshLiveData]);
 
   return status;
 }
