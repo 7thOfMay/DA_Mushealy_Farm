@@ -25,7 +25,7 @@ export default function FarmDetailPage() {
   const farmDevices = devices.filter((device) => farmGardenIds.has(device.gardenId));
   const farmAlerts = alerts.filter((alert) => farmGardenIds.has(alert.gardenId));
 
-  const onlineDevices = farmDevices.filter((device) => device.status === "online").length;
+  const onlineDevices = farmDevices.filter((device) => device.status === "online" || device.status === "active").length;
   const unresolvedAlerts = farmAlerts.filter((alert) => alert.status !== "RESOLVED").length;
   const uptime = farmDevices.length > 0 ? Math.round((onlineDevices / farmDevices.length) * 100) : 100;
 

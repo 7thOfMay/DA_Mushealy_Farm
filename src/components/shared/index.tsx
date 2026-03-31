@@ -6,7 +6,7 @@ import { AlertCircle } from "lucide-react";
 // Status Dot
 // ========================
 interface StatusDotProps {
-  status: "online" | "offline" | "error";
+  status: "online" | "offline" | "error" | "active";
   className?: string;
 }
 
@@ -15,7 +15,7 @@ export function StatusDot({ status, className }: StatusDotProps) {
     <span
       className={cn(
         "inline-block w-2 h-2 rounded-full flex-shrink-0",
-        status === "online" && "bg-[#27AE60] animate-pulse-dot",
+        (status === "online" || status === "active") && "bg-[#27AE60] animate-pulse-dot",
         status === "offline" && "bg-[#CBD5E1]",
         status === "error" && "bg-[#C0392B] animate-pulse-dot",
         className

@@ -402,7 +402,7 @@ export function mapDevice(row: DeviceRow): Device {
     gardenName: row.zone_name,
     hardwareId: row.device_code,
     status: row.status as Device["status"],
-    isOn: row.status === "online",
+    isOn: row.status === "active",
     lastUpdated: toISOString(row.last_updated),
     lastValue: row.latest_value != null ? Number(row.latest_value) : undefined,
     lastUnit: row.unit ?? undefined,

@@ -339,7 +339,7 @@ export const useAppStore = create<AppState>((set) => ({
   toggleDevice: (deviceId) =>
     set((state) => ({
       devices: state.devices.map((d) =>
-        d.id === deviceId ? { ...d, isOn: !d.isOn, lastUpdated: new Date().toISOString() } : d
+        d.id === deviceId ? { ...d, isOn: !d.isOn, status: d.isOn ? "online" : "active", lastUpdated: new Date().toISOString() } : d
       ),
     })),
   addDevice: (device) =>

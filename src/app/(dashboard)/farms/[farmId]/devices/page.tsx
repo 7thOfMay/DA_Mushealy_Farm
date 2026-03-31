@@ -98,8 +98,8 @@ export default function FarmDevicesPage() {
       statusFilter === "all"
       || (statusFilter === "sensor" && isSensor)
       || (statusFilter === "actuator" && !isSensor)
-      || (statusFilter === "online" && device.status === "online")
-      || (statusFilter === "error" && device.status !== "online");
+      || (statusFilter === "online" && (device.status === "online" || device.status === "active"))
+      || (statusFilter === "error" && device.status !== "online" && device.status !== "active");
 
     const matchesGarden = gardenFilter === "all" || device.gardenId === gardenFilter;
     return matchesSearch && matchesCategory && matchesGarden;
@@ -275,20 +275,20 @@ export default function FarmDevicesPage() {
                   </div>
                   <div className="flex items-center justify-between">
                     {isActuator ? (
-                      <ToggleSwitch checked={device.isOn} onChange={async () => { const cmd = device.isOn ? 'turn_off' : 'turn_on'; try { await apiUpdateDevice(device.id, undefined, device.isOn ? 'offline' : 'online'); await apiSendDeviceCommand(device.id, cmd, {}, loggedInUser?.id); } catch {} toggleDevice(device.id); }} disabled={device.status !== "online"} size="sm" />
+                      <ToggleSwitch checked={device.isOn} onChange={async () => { const cmd = device.isOn ? 'turn_off' : 'turn_on'; try { await apiUpdateDevice(device.id, undefined, device.isOn ? 'online' : 'active'); await apiSendDeviceCommand(device.id, cmd, {}, loggedInUser?.id); } catch {} toggleDevice(device.id); }} disabled={device.status !== "online" && device.status !== "active"} size="sm" />
                     ) : (
                       <p className="text-[1.375rem] font-bold text-[#1A2E1F]" style={{ fontFamily: "'DM Mono', monospace" }}>
                         {device.lastValue != null ? device.lastValue : "--"}
                         {device.lastValue != null && device.lastUnit && <span className="text-[0.75rem] text-[#5C7A6A] ml-1">{device.lastUnit}</span>}
                       </p>
                     )}
-                    <Badge variant={device.status === "online" ? "ok" : device.status === "error" ? "danger" : "default"}>
+                    <Badge variant={device.status === "online" || device.status === "active" ? "ok" : device.status === "error" ? "danger" : "default"}>
                       {device.status}
                     </Badge>
                   </div>
                   {device.type === "led_rgb" && (
                     <RGBController
-                      enabled={device.status === "online" && !!device.isOn}
+                      enabled={(device.status === "online" || device.status === "active") && !!device.isOn}
                       onApply={(payload) => {
                         addToast({
                           type: "info",
@@ -335,7 +335,7 @@ export default function FarmDevicesPage() {
                       <td className="px-4 py-3"><StatusDot status={device.status} /></td>
                       <td className="px-4 py-3">
                         {isActuator ? (
-                          <ToggleSwitch checked={device.isOn} onChange={async () => { const cmd = device.isOn ? 'turn_off' : 'turn_on'; try { await apiUpdateDevice(device.id, undefined, device.isOn ? 'offline' : 'online'); await apiSendDeviceCommand(device.id, cmd, {}, loggedInUser?.id); } catch {} toggleDevice(device.id); }} disabled={device.status !== "online"} size="sm" />
+                          <ToggleSwitch checked={device.isOn} onChange={async () => { const cmd = device.isOn ? 'turn_off' : 'turn_on'; try { await apiUpdateDevice(device.id, undefined, device.isOn ? 'online' : 'active'); await apiSendDeviceCommand(device.id, cmd, {}, loggedInUser?.id); } catch {} toggleDevice(device.id); }} disabled={device.status !== "online" && device.status !== "active"} size="sm" />
                         ) : (
                           <span className="text-[0.8125rem] text-[#5C7A6A]">Giá trị mới nhất</span>
                         )}

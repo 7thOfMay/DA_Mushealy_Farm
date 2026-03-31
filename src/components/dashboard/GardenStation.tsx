@@ -69,7 +69,7 @@ export function GardenStation({ garden, sensors }: GardenStationProps) {
     if (!pump) return;
     const cmd = pump.isOn ? "turn_off" : "turn_on";
     try {
-      await apiUpdateDevice(pump.id, undefined, pump.isOn ? "offline" : "online");
+      await apiUpdateDevice(pump.id, undefined, pump.isOn ? "online" : "active");
       await apiSendDeviceCommand(pump.id, cmd, {}, loggedInUser?.id);
     } catch {}
     toggleDevice(pump.id);

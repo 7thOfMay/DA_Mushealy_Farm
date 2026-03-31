@@ -107,7 +107,7 @@ export interface Device {
   gardenId: string;
   gardenName: string;
   hardwareId?: string;
-  status: "online" | "offline" | "error";
+  status: "online" | "offline" | "error" | "active";
   isOn: boolean;
   lastUpdated: string;
   lastValue?: number;

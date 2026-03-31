@@ -71,7 +71,7 @@ export function DeviceQuickControl() {
                   onChange={async () => {
                     const cmd = device.isOn ? "turn_off" : "turn_on";
                     try {
-                      await apiUpdateDevice(device.id, undefined, device.isOn ? "offline" : "online");
+                      await apiUpdateDevice(device.id, undefined, device.isOn ? "online" : "active");
                       await apiSendDeviceCommand(device.id, cmd, {}, loggedInUser?.id);
                     } catch {}
                     toggleDevice(device.id);
@@ -81,7 +81,7 @@ export function DeviceQuickControl() {
                     });
                   }}
                   size="sm"
-                  disabled={device.status === "offline" || device.status === "error"}
+                  disabled={device.status !== "online" && device.status !== "active"}
                 />
               </div>
             </div>

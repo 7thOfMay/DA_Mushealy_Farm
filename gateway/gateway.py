@@ -392,7 +392,8 @@ def on_message(client, userdata, msg):
     if feed_id in ("v10", "v11"):
         for dev_id, fkey in config.DEVICE_TO_FEED.items():
             if fkey == feed_id:
-                update_device_status(dev_id, "online")
+                status = "active" if payload.strip() == "1" else "online"
+                update_device_status(dev_id, status)
                 conn = get_db()
                 if conn:
                     try:
