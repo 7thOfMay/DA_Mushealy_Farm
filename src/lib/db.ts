@@ -12,13 +12,11 @@ function getPoolConfig(): PoolOptions {
     database: process.env.DB_NAME ?? "smart_farm",
     charset: "utf8mb4",
     waitForConnections: true,
-    connectionLimit: isProduction ? 3 : 10,
+    connectionLimit: isProduction ? 1 : 10,
     queueLimit: 0,
-    enableKeepAlive: true,
-    keepAliveInitialDelay: 0,
-    connectTimeout: 10_000,
-    // Railway MySQL requires SSL in production (Vercel → Railway)
-    ...(isProduction && { ssl: { rejectUnauthorized: false } }),
+    ...(isProduction
+      ? { connectTimeout: 5_000, ssl: { rejectUnauthorized: false } }
+      : { enableKeepAlive: true, keepAliveInitialDelay: 0, connectTimeout: 10_000 }),
   };
 }
 
