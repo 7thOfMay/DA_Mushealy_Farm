@@ -43,11 +43,68 @@ def _init_pool():
         )
         db_available = True
         print("[DB] Kết nối Railway MySQL thành công (pool)")
+        # Tự động cập nhật device mapping từ DB
+        _sync_device_mapping()
         return True
     except MySQLError as e:
         db_available = False
         print(f"[DB] Lỗi kết nối: {e}")
         return False
+
+
+def _sync_device_mapping():
+    """Tự động cập nhật FEED_TO_DEVICE và DEVICE_TO_FEED từ bảng devices."""
+    conn = None
+    try:
+        conn = db_pool.get_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT d.device_id, d.device_code, dt.category "
+            "FROM devices d "
+            "JOIN device_types dt ON d.device_type_id = dt.device_type_id "
+            "WHERE d.zone_id = (SELECT MIN(zone_id) FROM farm_zones) "
+            "ORDER BY d.device_type_id"
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+
+        # Map device_code → feed key
+        CODE_TO_FEED = {
+            "DEV-TEMP-01": "v1",
+            "DEV-AIR-01": "v2",
+            "DEV-SOIL-01": "v3",
+            "DEV-LIGHT-01": "v4",
+        }
+        CODE_TO_ACTUATOR_FEED = {
+            "DEV-PUMP-01": "v10",
+        }
+
+        updated_sensor = {}
+        updated_actuator = {}
+        for row in rows:
+            code = row["device_code"]
+            did = row["device_id"]
+            if code in CODE_TO_FEED:
+                updated_sensor[CODE_TO_FEED[code]] = did
+            if code in CODE_TO_ACTUATOR_FEED:
+                updated_actuator[did] = CODE_TO_ACTUATOR_FEED[code]
+
+        if updated_sensor:
+            config.FEED_TO_DEVICE.update(updated_sensor)
+            print(f"[DB] Đã đồng bộ FEED_TO_DEVICE: {config.FEED_TO_DEVICE}")
+        if updated_actuator:
+            config.DEVICE_TO_FEED.clear()
+            config.DEVICE_TO_FEED.update(updated_actuator)
+            print(f"[DB] Đã đồng bộ DEVICE_TO_FEED: {config.DEVICE_TO_FEED}")
+
+    except MySQLError as e:
+        print(f"[DB] Không thể đồng bộ device mapping: {e} — dùng config mặc định")
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 def get_db():
