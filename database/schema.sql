@@ -199,7 +199,7 @@ CREATE TABLE devices (
     zone_id            INT NOT NULL,
     install_location   VARCHAR(255),
     is_controllable    BOOLEAN NOT NULL DEFAULT FALSE,
-    status             ENUM('online','offline','error') NOT NULL DEFAULT 'offline',
+    status             ENUM('online','offline','error','active') NOT NULL DEFAULT 'offline',
     last_updated       DATETIME,
     created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_devices_type FOREIGN KEY (device_type_id) REFERENCES device_types(device_type_id),
