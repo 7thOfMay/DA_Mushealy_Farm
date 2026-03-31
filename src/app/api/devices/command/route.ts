@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid deviceId" }, { status: 400 });
   }
 
-  await sendDeviceCommand(deviceNumId, body.command, body.params ?? {}, userNumId ?? 0);
+  await sendDeviceCommand(deviceNumId, body.command, body.params ?? {}, userNumId);
 
   await insertSystemLog(
     userNumId,

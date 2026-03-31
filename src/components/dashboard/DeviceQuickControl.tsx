@@ -21,6 +21,7 @@ export function DeviceQuickControl() {
   const currentFarmId = useAppStore((s) => s.currentFarmId);
   const toggleDevice = useAppStore((s) => s.toggleDevice);
   const addToast = useAppStore((s) => s.addToast);
+  const loggedInUser = useAppStore((s) => s.loggedInUser);
 
   const farmGardenIds = new Set(
     gardens
@@ -71,7 +72,7 @@ export function DeviceQuickControl() {
                     const cmd = device.isOn ? "turn_off" : "turn_on";
                     try {
                       await apiUpdateDevice(device.id, undefined, device.isOn ? "offline" : "online");
-                      await apiSendDeviceCommand(device.id, cmd);
+                      await apiSendDeviceCommand(device.id, cmd, {}, loggedInUser?.id);
                     } catch {}
                     toggleDevice(device.id);
                     addToast({

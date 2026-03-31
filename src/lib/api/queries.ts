@@ -389,7 +389,7 @@ export async function sendDeviceCommand(
   deviceId: number,
   commandType: string,
   params: Record<string, unknown>,
-  issuedBy: number,
+  issuedBy: number | null,
 ) {
   await query(`
     INSERT INTO device_commands (device_id, command_type, parameters, status, issued_by)

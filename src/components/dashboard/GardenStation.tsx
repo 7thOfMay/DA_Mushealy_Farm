@@ -31,6 +31,7 @@ export function GardenStation({ garden, sensors }: GardenStationProps) {
   const cropTypes = useAppStore((s) => s.cropTypes);
   const toggleDevice = useAppStore((s) => s.toggleDevice);
   const addToast = useAppStore((s) => s.addToast);
+  const loggedInUser = useAppStore((s) => s.loggedInUser);
 
   const pump = devices.find((d) => d.gardenId === garden.id && d.type === "pump");
   const crop = cropTypes.find((item) => item.id === garden.cropTypeId);
@@ -69,7 +70,7 @@ export function GardenStation({ garden, sensors }: GardenStationProps) {
     const cmd = pump.isOn ? "turn_off" : "turn_on";
     try {
       await apiUpdateDevice(pump.id, undefined, pump.isOn ? "offline" : "online");
-      await apiSendDeviceCommand(pump.id, cmd);
+      await apiSendDeviceCommand(pump.id, cmd, {}, loggedInUser?.id);
     } catch {}
     toggleDevice(pump.id);
     addToast({
