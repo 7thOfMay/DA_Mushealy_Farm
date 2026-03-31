@@ -10,6 +10,7 @@ import { ToggleSwitch } from "@/components/shared/ToggleSwitch";
 import { RGBController } from "@/components/devices/RGBController";
 import { cn, timeAgo } from "@/lib/utils";
 import { apiCreateDevice, apiUpdateDevice, apiSendDeviceCommand } from "@/lib/api/client";
+import { lockDeviceToggle } from "@/hooks/useApiHydration";
 import type { DeviceType } from "@/types";
 import {
   Activity,
@@ -275,7 +276,7 @@ export default function FarmDevicesPage() {
                   </div>
                   <div className="flex items-center justify-between">
                     {isActuator ? (
-                      <ToggleSwitch checked={device.isOn} onChange={async () => { const cmd = device.isOn ? 'turn_off' : 'turn_on'; try { await apiUpdateDevice(device.id, undefined, device.isOn ? 'online' : 'active'); await apiSendDeviceCommand(device.id, cmd, {}, loggedInUser?.id); } catch {} toggleDevice(device.id); }} disabled={device.status !== "online" && device.status !== "active"} size="sm" />
+                      <ToggleSwitch checked={device.isOn} onChange={async () => { const cmd = device.isOn ? 'turn_off' : 'turn_on'; try { await apiUpdateDevice(device.id, undefined, device.isOn ? 'online' : 'active'); await apiSendDeviceCommand(device.id, cmd, {}, loggedInUser?.id); } catch {} lockDeviceToggle(device.id); toggleDevice(device.id); }} disabled={device.status !== "online" && device.status !== "active"} size="sm" />
                     ) : (
                       <p className="text-[1.375rem] font-bold text-[#1A2E1F]" style={{ fontFamily: "'DM Mono', monospace" }}>
                         {device.lastValue != null ? device.lastValue : "--"}
@@ -335,7 +336,7 @@ export default function FarmDevicesPage() {
                       <td className="px-4 py-3"><StatusDot status={device.status} /></td>
                       <td className="px-4 py-3">
                         {isActuator ? (
-                          <ToggleSwitch checked={device.isOn} onChange={async () => { const cmd = device.isOn ? 'turn_off' : 'turn_on'; try { await apiUpdateDevice(device.id, undefined, device.isOn ? 'online' : 'active'); await apiSendDeviceCommand(device.id, cmd, {}, loggedInUser?.id); } catch {} toggleDevice(device.id); }} disabled={device.status !== "online" && device.status !== "active"} size="sm" />
+                          <ToggleSwitch checked={device.isOn} onChange={async () => { const cmd = device.isOn ? 'turn_off' : 'turn_on'; try { await apiUpdateDevice(device.id, undefined, device.isOn ? 'online' : 'active'); await apiSendDeviceCommand(device.id, cmd, {}, loggedInUser?.id); } catch {} lockDeviceToggle(device.id); toggleDevice(device.id); }} disabled={device.status !== "online" && device.status !== "active"} size="sm" />
                         ) : (
                           <span className="text-[0.8125rem] text-[#5C7A6A]">Giá trị mới nhất</span>
                         )}

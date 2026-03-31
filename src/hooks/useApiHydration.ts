@@ -24,7 +24,16 @@ import {
   apiHealthCheck,
 } from "@/lib/api/client";
 
-const POLL_INTERVAL = 5_000; // 10 seconds
+const POLL_INTERVAL = 3_000; // 3 seconds
+const TOGGLE_LOCK_MS = 12_000; // keep optimistic state for 12s after toggle
+
+/** Device IDs recently toggled — poll will not overwrite their status/isOn */
+const _deviceToggleLocks = new Map<string, number>();
+
+/** Call this right after a device toggle to protect its optimistic state from the next poll. */
+export function lockDeviceToggle(deviceId: string) {
+  _deviceToggleLocks.set(deviceId, Date.now());
+}
 
 export function useApiHydration() {
   const hydrated = useRef(false);
@@ -39,7 +48,30 @@ export function useApiHydration() {
       apiGetAlerts(),
     ]);
     const patch: Record<string, unknown> = {};
-    if (devices) patch.devices = devices;
+    if (devices) {
+      // Merge: preserve optimistic isOn/status for recently-toggled devices
+      const now = Date.now();
+      const currentDevices = useAppStore.getState().devices;
+      const merged = devices.map((fresh) => {
+        const lockedAt = _deviceToggleLocks.get(fresh.id);
+        if (lockedAt && now - lockedAt < TOGGLE_LOCK_MS) {
+          // Keep local isOn + status, take everything else from server
+          const local = currentDevices.find((d) => d.id === fresh.id);
+          if (local) {
+            // If server already agrees, release lock early
+            if (fresh.isOn === local.isOn) {
+              _deviceToggleLocks.delete(fresh.id);
+              return fresh;
+            }
+            return { ...fresh, isOn: local.isOn, status: local.status };
+          }
+        } else if (lockedAt) {
+          _deviceToggleLocks.delete(fresh.id);
+        }
+        return fresh;
+      });
+      patch.devices = merged;
+    }
     if (sensorSummaries) patch.sensorSummaries = sensorSummaries;
     if (alerts) patch.alerts = alerts;
 

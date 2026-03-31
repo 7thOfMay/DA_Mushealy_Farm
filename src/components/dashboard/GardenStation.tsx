@@ -7,6 +7,7 @@ import { ToggleSwitch } from "@/components/shared/ToggleSwitch";
 import { useAppStore } from "@/lib/store";
 import { GardenVisual } from "@/components/dashboard/GardenVisual";
 import { apiUpdateDevice, apiSendDeviceCommand } from "@/lib/api/client";
+import { lockDeviceToggle } from "@/hooks/useApiHydration";
 import type { Garden, GardenSensorSummary } from "@/types";
 
 interface GardenStationProps {
@@ -72,6 +73,7 @@ export function GardenStation({ garden, sensors }: GardenStationProps) {
       await apiUpdateDevice(pump.id, undefined, pump.isOn ? "online" : "active");
       await apiSendDeviceCommand(pump.id, cmd, {}, loggedInUser?.id);
     } catch {}
+    lockDeviceToggle(pump.id);
     toggleDevice(pump.id);
     addToast({
       type: "success",

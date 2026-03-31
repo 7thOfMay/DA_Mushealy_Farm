@@ -5,6 +5,7 @@ import { ToggleSwitch } from "@/components/shared/ToggleSwitch";
 import { StatusDot } from "@/components/shared/index";
 import { useAppStore } from "@/lib/store";
 import { apiUpdateDevice, apiSendDeviceCommand } from "@/lib/api/client";
+import { lockDeviceToggle } from "@/hooks/useApiHydration";
 
 const deviceTypeConfig: Record<string, { icon: typeof Cpu; color: string }> = {
   pump: { icon: Droplets, color: "#2980B9" },
@@ -74,6 +75,7 @@ export function DeviceQuickControl() {
                       await apiUpdateDevice(device.id, undefined, device.isOn ? "online" : "active");
                       await apiSendDeviceCommand(device.id, cmd, {}, loggedInUser?.id);
                     } catch {}
+                    lockDeviceToggle(device.id);
                     toggleDevice(device.id);
                     addToast({
                       type: "success",

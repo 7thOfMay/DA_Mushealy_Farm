@@ -42,5 +42,5 @@ DEVICE_TO_FEED = {
 }
 
 # --- CẤU HÌNH GATEWAY ---
-COMMAND_POLL_INTERVAL = 5   # Giây - tần suất poll lệnh từ DB
+COMMAND_POLL_INTERVAL = 3   # Giây - tần suất poll lệnh từ DB
 OFFLINE_QUEUE_FILE = "offline_queue.json"
