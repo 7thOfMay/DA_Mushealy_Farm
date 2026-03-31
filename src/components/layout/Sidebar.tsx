@@ -154,9 +154,11 @@ export function Sidebar() {
             <div className="bg-white/10 rounded-[10px] border border-white/10 p-2">
               {role === "ADMIN" && managedFarmers.length > 0 && (
                 <>
-                  <label className="text-white/50 text-[0.625rem] uppercase tracking-[2px] px-1 font-semibold">Nông dân quản lý</label>
+                  <label htmlFor="sidebar-farmer-select" className="text-white/50 text-[0.625rem] uppercase tracking-[2px] px-1 font-semibold">Nông dân quản lý</label>
                   <div className="relative mt-1 mb-2">
                     <select
+                      id="sidebar-farmer-select"
+                      name="sidebar-farmer-select"
                       className="w-full appearance-none bg-transparent text-white text-[0.8125rem] font-semibold px-2 py-2 rounded-[8px] outline-none border border-white/10"
                       value={selectedFarmerId ?? ""}
                       onChange={(e) => setSelectedFarmerId(e.target.value || null)}
@@ -172,9 +174,11 @@ export function Sidebar() {
                 </>
               )}
 
-              <label className="text-white/50 text-[0.625rem] uppercase tracking-[2px] px-1 font-semibold">Nông trại hiện tại</label>
+              <label htmlFor="sidebar-farm-select" className="text-white/50 text-[0.625rem] uppercase tracking-[2px] px-1 font-semibold">Nông trại hiện tại</label>
               <div className="relative mt-1">
                 <select
+                  id="sidebar-farm-select"
+                  name="sidebar-farm-select"
                   className="w-full appearance-none bg-transparent text-white text-[0.8125rem] font-semibold px-2 py-2 rounded-[8px] outline-none border border-white/10"
                   value={activeFarm?.id ?? ""}
                   onChange={(e) => {
