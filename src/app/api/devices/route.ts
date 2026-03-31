@@ -9,20 +9,25 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Database not configured" }, { status: 503 });
   }
 
-  const { searchParams } = new URL(request.url);
-  const gardenId = searchParams.get("gardenId");
+  try {
+    const { searchParams } = new URL(request.url);
+    const gardenId = searchParams.get("gardenId");
 
-  if (gardenId) {
-    const numId = parseInt(gardenId.replace(/^g/, ""), 10);
-    if (isNaN(numId)) {
-      return NextResponse.json({ error: "Invalid gardenId" }, { status: 400 });
+    if (gardenId) {
+      const numId = parseInt(gardenId.replace(/^g/, ""), 10);
+      if (isNaN(numId)) {
+        return NextResponse.json({ error: "Invalid gardenId" }, { status: 400 });
+      }
+      const devices = await fetchDevicesByZoneId(numId);
+      return NextResponse.json(devices);
     }
-    const devices = await fetchDevicesByZoneId(numId);
-    return NextResponse.json(devices);
-  }
 
-  const devices = await fetchDevices();
-  return NextResponse.json(devices);
+    const devices = await fetchDevices();
+    return NextResponse.json(devices);
+  } catch (err) {
+    console.error("[API GET /devices]", err);
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {

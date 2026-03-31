@@ -8,8 +8,13 @@ export async function GET() {
   if (!isDbConfigured()) {
     return NextResponse.json({ error: "Database not configured" }, { status: 503 });
   }
-  const alerts = await fetchAlerts();
-  return NextResponse.json(alerts);
+  try {
+    const alerts = await fetchAlerts();
+    return NextResponse.json(alerts);
+  } catch (err) {
+    console.error("[API GET /alerts]", err);
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
 }
 
 export async function PATCH(request: Request) {

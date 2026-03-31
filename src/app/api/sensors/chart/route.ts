@@ -45,7 +45,13 @@ export async function GET(request: Request) {
     });
   }
 
-  const rows = await fetchSensorChartData(zoneIds, hours);
+  let rows;
+  try {
+    rows = await fetchSensorChartData(zoneIds, hours);
+  } catch (err) {
+    console.error("[API GET /sensors/chart]", err);
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
 
   // Build a gardenIndex map: zoneId → "garden1" | "garden2" | "garden3"
   const gardenIndex = new Map<number, string>();

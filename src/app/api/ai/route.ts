@@ -8,6 +8,11 @@ export async function GET() {
   if (!isDbConfigured()) {
     return NextResponse.json({ error: "Database not configured" }, { status: 503 });
   }
-  const analyses = await fetchAIAnalyses();
-  return NextResponse.json(analyses);
+  try {
+    const analyses = await fetchAIAnalyses();
+    return NextResponse.json(analyses);
+  } catch (err) {
+    console.error("[API GET /ai]", err);
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
 }

@@ -9,8 +9,13 @@ export async function GET() {
   if (!isDbConfigured()) {
     return NextResponse.json({ error: "Database not configured" }, { status: 503 });
   }
-  const users = await fetchUsers();
-  return NextResponse.json(users);
+  try {
+    const users = await fetchUsers();
+    return NextResponse.json(users);
+  } catch (err) {
+    console.error("[API GET /users]", err);
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {

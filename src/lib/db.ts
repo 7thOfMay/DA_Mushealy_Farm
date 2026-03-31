@@ -3,6 +3,7 @@ import mysql, { type Pool, type PoolOptions, type RowDataPacket } from "mysql2/p
 let pool: Pool | null = null;
 
 function getPoolConfig(): PoolOptions {
+  const isProduction = process.env.NODE_ENV === "production";
   return {
     host: process.env.DB_HOST ?? "localhost",
     port: Number(process.env.DB_PORT ?? 3306),
@@ -11,10 +12,13 @@ function getPoolConfig(): PoolOptions {
     database: process.env.DB_NAME ?? "smart_farm",
     charset: "utf8mb4",
     waitForConnections: true,
-    connectionLimit: 10,
+    connectionLimit: isProduction ? 3 : 10,
     queueLimit: 0,
     enableKeepAlive: true,
     keepAliveInitialDelay: 0,
+    connectTimeout: 10_000,
+    // Railway MySQL requires SSL in production (Vercel → Railway)
+    ...(isProduction && { ssl: { rejectUnauthorized: false } }),
   };
 }
 

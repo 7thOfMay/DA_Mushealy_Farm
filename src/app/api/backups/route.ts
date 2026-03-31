@@ -8,8 +8,13 @@ export async function GET() {
   if (!isDbConfigured()) {
     return NextResponse.json({ error: "Database not configured" }, { status: 503 });
   }
-  const backups = await fetchBackups();
-  return NextResponse.json(backups);
+  try {
+    const backups = await fetchBackups();
+    return NextResponse.json(backups);
+  } catch (err) {
+    console.error("[API GET /backups]", err);
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {
