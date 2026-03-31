@@ -152,7 +152,7 @@ export async function fetchDevices() {
            d.install_location, d.is_controllable, d.status, d.last_updated,
            (SELECT sd.value FROM sensor_data sd
             WHERE sd.device_id = d.device_id
-            ORDER BY sd.recorded_at DESC LIMIT 1) AS last_value
+            ORDER BY sd.recorded_at DESC LIMIT 1) AS `last_value`
     FROM devices d
     JOIN device_types dt ON d.device_type_id = dt.device_type_id
     JOIN farm_zones fz ON d.zone_id = fz.zone_id
@@ -168,7 +168,7 @@ export async function fetchDevicesByZoneId(zoneId: number) {
            d.install_location, d.is_controllable, d.status, d.last_updated,
            (SELECT sd.value FROM sensor_data sd
             WHERE sd.device_id = d.device_id
-            ORDER BY sd.recorded_at DESC LIMIT 1) AS last_value
+            ORDER BY sd.recorded_at DESC LIMIT 1) AS `last_value`
     FROM devices d
     JOIN device_types dt ON d.device_type_id = dt.device_type_id
     JOIN farm_zones fz ON d.zone_id = fz.zone_id
