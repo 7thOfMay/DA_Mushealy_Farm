@@ -30,15 +30,15 @@ FEEDS = {
 # Phải khớp với device_id trong bảng devices (seed: DEV-TEMP-01=1, DEV-AIR-01=2, ...)
 # Gateway sẽ tự cập nhật mapping khi khởi động nếu kết nối DB thành công
 FEED_TO_DEVICE = {
-    "v1": 9,    # Cảm biến nhiệt độ KV1  (device_id=1)
-    "v2": 10,    # Cảm biến độ ẩm không khí KV1  (device_id=2)
-    "v3": 11,    # Cảm biến độ ẩm đất KV1  (device_id=3)
-    "v4": 12,    # Cảm biến ánh sáng KV1  (device_id=4)
+    "v1": 9,    # Cảm biến nhiệt độ KV1  (device_id=9)
+    "v2": 10,   # Cảm biến độ ẩm không khí KV1  (device_id=10)
+    "v3": 11,   # Cảm biến độ ẩm đất KV1  (device_id=11)
+    "v4": 12,   # Cảm biến ánh sáng KV1  (device_id=12)
 }
 
 # --- MAPPING device_id → FEED cho điều khiển (actuator) ---
 DEVICE_TO_FEED = {
-    13: "v10",   # Máy bơm KV1  (device_id=5)
+    13: "v10",   # Máy bơm KV1  (device_id=13)
 }
 
 # --- CẤU HÌNH GATEWAY ---
