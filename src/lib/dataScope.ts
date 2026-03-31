@@ -49,10 +49,12 @@ export function getVisibleFarmsForViewer(input: ScopeInput): Farm[] {
     ? selectedFarmerId
     : null;
 
-  // If a specific farmer is selected, show only their farms
+  // If a specific farmer is selected, show their farms + admin's own farms
   // Otherwise show ALL farms the admin can see
   if (effectiveFarmerId) {
-    return farms.filter((farm) => farm.ownerId === effectiveFarmerId);
+    return farms.filter(
+      (farm) => farm.ownerId === effectiveFarmerId || farm.ownerId === loggedInUser.id,
+    );
   }
   return farms.filter((farm) => allowedFarmerIds.has(farm.ownerId));
 }
