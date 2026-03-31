@@ -76,7 +76,7 @@ def _sync_device_mapping():
             "DEV-LIGHT-01": "v4",
         }
         CODE_TO_ACTUATOR_FEED = {
-            "DEV-PUMP-01": "v10",
+            "DEV-PUMP-01": "V10",
         }
 
         updated_sensor = {}
@@ -391,7 +391,7 @@ def on_message(client, userdata, msg):
     # ----- ACTUATOR FEEDBACK: cập nhật trạng thái -----
     if feed_id in ("v10", "v11"):
         for dev_id, fkey in config.DEVICE_TO_FEED.items():
-            if fkey == feed_id:
+            if fkey.lower() == feed_id:
                 status = "active" if payload.strip() == "1" else "online"
                 update_device_status(dev_id, status)
                 conn = get_db()

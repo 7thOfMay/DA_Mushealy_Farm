@@ -17,6 +17,7 @@ DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 DB_NAME = os.getenv("DB_NAME", "railway")
 
 # --- MAPPING FEED → TÊN HIỂN THỊ ---
+# Keys are lowercase (used for matching incoming messages after .lower())
 FEEDS = {
     "v1": "Temperature",
     "v2": "Humidity",
@@ -27,8 +28,7 @@ FEEDS = {
 }
 
 # --- MAPPING FEED → device_id TRONG DATABASE ---
-# Phải khớp với device_id trong bảng devices (seed: DEV-TEMP-01=1, DEV-AIR-01=2, ...)
-# Gateway sẽ tự cập nhật mapping khi khởi động nếu kết nối DB thành công
+# Keys are lowercase (matched after .lower() in on_message)
 FEED_TO_DEVICE = {
     "v1": 9,    # Cảm biến nhiệt độ KV1  (device_id=9)
     "v2": 10,   # Cảm biến độ ẩm không khí KV1  (device_id=10)
@@ -37,8 +37,9 @@ FEED_TO_DEVICE = {
 }
 
 # --- MAPPING device_id → FEED cho điều khiển (actuator) ---
+# Values are UPPERCASE (OhStem MQTT topics are case-sensitive)
 DEVICE_TO_FEED = {
-    13: "v10",   # Máy bơm KV1  (device_id=13)
+    13: "V10",   # Máy bơm KV1  (device_id=13)
 }
 
 # --- CẤU HÌNH GATEWAY ---
