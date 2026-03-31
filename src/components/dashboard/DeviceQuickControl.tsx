@@ -4,6 +4,7 @@ import { Cpu, Droplets, Lightbulb } from "lucide-react";
 import { ToggleSwitch } from "@/components/shared/ToggleSwitch";
 import { StatusDot } from "@/components/shared/index";
 import { useAppStore } from "@/lib/store";
+import { apiUpdateDevice, apiSendDeviceCommand } from "@/lib/api/client";
 
 const deviceTypeConfig: Record<string, { icon: typeof Cpu; color: string }> = {
   pump: { icon: Droplets, color: "#2980B9" },
@@ -66,7 +67,12 @@ export function DeviceQuickControl() {
                 </span>
                 <ToggleSwitch
                   checked={device.isOn}
-                  onChange={() => {
+                  onChange={async () => {
+                    const cmd = device.isOn ? "turn_off" : "turn_on";
+                    try {
+                      await apiUpdateDevice(device.id, undefined, device.isOn ? "offline" : "online");
+                      await apiSendDeviceCommand(device.id, cmd);
+                    } catch {}
                     toggleDevice(device.id);
                     addToast({
                       type: "success",

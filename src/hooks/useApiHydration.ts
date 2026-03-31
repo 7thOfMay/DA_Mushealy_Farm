@@ -13,6 +13,7 @@ import {
   apiGetGardens,
   apiGetDevices,
   apiGetSensorSummaries,
+  apiGetSensorChartData,
   apiGetAlerts,
   apiGetAlertRules,
   apiGetSchedules,
@@ -23,7 +24,7 @@ import {
   apiHealthCheck,
 } from "@/lib/api/client";
 
-const POLL_INTERVAL = 10_000; // 10 seconds
+const POLL_INTERVAL = 5_000; // 10 seconds
 
 export function useApiHydration() {
   const hydrated = useRef(false);
@@ -41,6 +42,24 @@ export function useApiHydration() {
     if (devices) patch.devices = devices;
     if (sensorSummaries) patch.sensorSummaries = sensorSummaries;
     if (alerts) patch.alerts = alerts;
+
+    // Refresh chart data from MySQL
+    const gardens = useAppStore.getState().gardens;
+    const currentFarmId = useAppStore.getState().currentFarmId;
+    const farmGardenIds = gardens
+      .filter((g) => !currentFarmId || g.farmId === currentFarmId)
+      .slice(0, 3)
+      .map((g) => g.id);
+    if (farmGardenIds.length > 0) {
+      const chartData = await apiGetSensorChartData(farmGardenIds);
+      if (chartData) {
+        patch.temperatureChartData = chartData.temperatureChartData;
+        patch.humidityAirChartData = chartData.humidityAirChartData;
+        patch.humiditySoilChartData = chartData.humiditySoilChartData;
+        patch.lightChartData = chartData.lightChartData;
+      }
+    }
+
     if (Object.keys(patch).length > 0) {
       useAppStore.setState(patch);
     }
@@ -105,6 +124,26 @@ export function useApiHydration() {
           const currentFarmId = useAppStore.getState().currentFarmId;
           if (!currentFarmId || !farms.some((f) => f.id === currentFarmId)) {
             useAppStore.getState().setCurrentFarmId(farms[0].id);
+          }
+        }
+
+        // Fetch chart data after gardens are loaded
+        if (gardens && gardens.length > 0) {
+          const cFarmId = useAppStore.getState().currentFarmId;
+          const farmGardenIds = gardens
+            .filter((g) => !cFarmId || g.farmId === cFarmId)
+            .slice(0, 3)
+            .map((g) => g.id);
+          if (farmGardenIds.length > 0) {
+            const chartData = await apiGetSensorChartData(farmGardenIds);
+            if (chartData) {
+              useAppStore.setState({
+                temperatureChartData: chartData.temperatureChartData,
+                humidityAirChartData: chartData.humidityAirChartData,
+                humiditySoilChartData: chartData.humiditySoilChartData,
+                lightChartData: chartData.lightChartData,
+              });
+            }
           }
         }
       }

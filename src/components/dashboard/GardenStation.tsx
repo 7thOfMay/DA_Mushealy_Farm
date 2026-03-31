@@ -6,6 +6,7 @@ import { timeAgo } from "@/lib/utils";
 import { ToggleSwitch } from "@/components/shared/ToggleSwitch";
 import { useAppStore } from "@/lib/store";
 import { GardenVisual } from "@/components/dashboard/GardenVisual";
+import { apiUpdateDevice, apiSendDeviceCommand } from "@/lib/api/client";
 import type { Garden, GardenSensorSummary } from "@/types";
 
 interface GardenStationProps {
@@ -63,8 +64,13 @@ export function GardenStation({ garden, sensors }: GardenStationProps) {
     return "normal" as const;
   };
 
-  const handleTogglePump = () => {
+  const handleTogglePump = async () => {
     if (!pump) return;
+    const cmd = pump.isOn ? "turn_off" : "turn_on";
+    try {
+      await apiUpdateDevice(pump.id, undefined, pump.isOn ? "offline" : "online");
+      await apiSendDeviceCommand(pump.id, cmd);
+    } catch {}
     toggleDevice(pump.id);
     addToast({
       type: "success",

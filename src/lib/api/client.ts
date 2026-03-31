@@ -16,6 +16,7 @@ import type {
   AIAnalysis,
   GardenSensorSummary,
   ZoneThresholds,
+  ChartDataPoint,
 } from "@/types";
 
 const BASE = "/api";
@@ -285,6 +286,21 @@ export async function apiGetAIAnalyses(): Promise<AIAnalysis[] | null> {
 
 export async function apiGetThresholds(): Promise<ZoneThresholds[] | null> {
   return fetchJson<ZoneThresholds[]>(`${BASE}/thresholds`);
+}
+
+export async function apiGetSensorChartData(
+  gardenIds: string[],
+  hours = 24,
+): Promise<{
+  temperatureChartData: ChartDataPoint[];
+  humidityAirChartData: ChartDataPoint[];
+  humiditySoilChartData: ChartDataPoint[];
+  lightChartData: ChartDataPoint[];
+} | null> {
+  const params = new URLSearchParams();
+  gardenIds.forEach((id) => params.append("gardenId", id));
+  params.set("hours", String(hours));
+  return fetchJson(`${BASE}/sensors/chart?${params.toString()}`);
 }
 
 export async function apiSendDeviceCommand(
