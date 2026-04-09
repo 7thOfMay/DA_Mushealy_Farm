@@ -2,7 +2,7 @@
 const nextConfig = {
   output: 'standalone',
   experimental: {
-    serverComponentsExternalPackages: ['mysql2'],
+    serverComponentsExternalPackages: ['pg'],
   },
 };
 

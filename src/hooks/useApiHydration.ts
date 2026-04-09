@@ -77,7 +77,9 @@ export function useApiHydration() {
     if (sensorSummaries) patch.sensorSummaries = sensorSummaries;
     if (alerts) patch.alerts = alerts;
 
-    // Refresh chart data from MySQL
+  }, []);
+
+  const refreshChartData = useCallback(async () => {
     const gardens = useAppStore.getState().gardens;
     const currentFarmId = useAppStore.getState().currentFarmId;
     const farmGardenIds = gardens

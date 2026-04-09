@@ -11,9 +11,10 @@ def utcnow():
 
 
 import paho.mqtt.client as mqtt
-import mysql.connector
-from mysql.connector import Error as MySQLError
-from mysql.connector.pooling import MySQLConnectionPool
+import psycopg2
+import psycopg2.extras
+import psycopg2.pool
+from psycopg2 import OperationalError as PgError
 import config
 
 # ============================================================
@@ -30,23 +31,21 @@ def _init_pool():
     if db_pool is not None:
         return True
     try:
-        db_pool = MySQLConnectionPool(
-            pool_name="gateway",
-            pool_size=3,
-            pool_reset_session=True,
+        db_pool = psycopg2.pool.ThreadedConnectionPool(
+            minconn=1,
+            maxconn=3,
             host=config.DB_HOST,
             port=config.DB_PORT,
             user=config.DB_USER,
             password=config.DB_PASSWORD,
-            database=config.DB_NAME,
-            ssl_disabled=True,
+            dbname=config.DB_NAME,
         )
         db_available = True
-        print("[DB] Kết nối Railway MySQL thành công (pool)")
+        print("[DB] Kết nối PostgreSQL thành công (pool)")
         # Tự động cập nhật device mapping từ DB
         _sync_device_mapping()
         return True
-    except MySQLError as e:
+    except PgError as e:
         db_available = False
         print(f"[DB] Lỗi kết nối: {e}")
         return False
@@ -56,8 +55,8 @@ def _sync_device_mapping():
     """Tự động cập nhật FEED_TO_DEVICE và DEVICE_TO_FEED từ bảng devices."""
     conn = None
     try:
-        conn = db_pool.get_connection()
-        cursor = conn.cursor(dictionary=True)
+        conn = db_pool.getconn()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cursor.execute(
             "SELECT d.device_id, d.device_code, dt.category "
             "FROM devices d "
@@ -97,12 +96,12 @@ def _sync_device_mapping():
             config.DEVICE_TO_FEED.update(updated_actuator)
             print(f"[DB] Đã đồng bộ DEVICE_TO_FEED: {config.DEVICE_TO_FEED}")
 
-    except MySQLError as e:
+    except Exception as e:
         print(f"[DB] Không thể đồng bộ device mapping: {e} — dùng config mặc định")
     finally:
         if conn:
             try:
-                conn.close()
+                db_pool.putconn(conn)
             except Exception:
                 pass
 
@@ -114,14 +113,22 @@ def get_db():
         if db_pool is None:
             if not _init_pool():
                 return None
-        conn = db_pool.get_connection()
+        conn = db_pool.getconn()
         db_available = True
         return conn
-    except MySQLError as e:
+    except Exception as e:
         db_available = False
-        # Pool chưa sẵn sàng → thử tạo lại
         print(f"[DB] Lỗi pool: {e}")
         return None
+
+
+def _putconn(conn):
+    """Trả kết nối về pool."""
+    if conn and db_pool:
+        try:
+            db_pool.putconn(conn)
+        except Exception:
+            pass
 
 
 def save_sensor_data(device_id, value):
@@ -146,15 +153,13 @@ def save_sensor_data(device_id, value):
         cursor.close()
         print(f"  → DB: Đã lưu device_id={device_id}, value={value}")
         return True
-    except MySQLError as e:
+    except Exception as e:
+        conn.rollback()
         print(f"  → DB ERROR: {e}")
         save_to_offline_queue(device_id, value)
         return False
     finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        _putconn(conn)
 
 
 def update_device_status(device_id, status="online"):
@@ -170,13 +175,11 @@ def update_device_status(device_id, status="online"):
         )
         conn.commit()
         cursor.close()
-    except MySQLError as e:
+    except Exception as e:
+        conn.rollback()
         print(f"  → DB ERROR (update status): {e}")
     finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        _putconn(conn)
 
 
 # ============================================================
@@ -246,13 +249,12 @@ def sync_offline_queue():
         with open(config.OFFLINE_QUEUE_FILE, "w") as f:
             json.dump([], f)
         print(f"[SYNC] Đã đồng bộ thành công {synced}/{len(queue)} bản ghi")
-    except MySQLError as e:
+    except Exception as e:
+        if conn:
+            conn.rollback()
         print(f"[SYNC] Lỗi: {e}")
     finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        _putconn(conn)
 
 
 # ============================================================
@@ -272,7 +274,7 @@ def poll_device_commands(mqtt_client):
             # Thử sync offline queue trước
             sync_offline_queue()
 
-            cursor = conn.cursor(dictionary=True)
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cursor.execute(
                 "SELECT dc.command_id, dc.device_id, dc.command_type, dc.parameters "
                 "FROM device_commands dc "
@@ -329,16 +331,12 @@ def poll_device_commands(mqtt_client):
             conn.commit()
             cursor.close()
 
-        except MySQLError as e:
-            print(f"[CMD] DB Error: {e}")
         except Exception as e:
-            print(f"[CMD] Error: {e}")
-        finally:
             if conn:
-                try:
-                    conn.close()
-                except Exception:
-                    pass
+                conn.rollback()
+            print(f"[CMD] DB Error: {e}")
+        finally:
+            _putconn(conn)
 
         time.sleep(config.COMMAND_POLL_INTERVAL)
 
@@ -405,18 +403,16 @@ def on_message(client, userdata, msg):
                         cursor.execute(
                             "UPDATE device_commands SET status = 'executed', executed_at = %s "
                             "WHERE device_id = %s AND status = 'sent' "
-                            "ORDER BY issued_at DESC LIMIT 1",
-                            (utcnow(), dev_id),
+                            "AND command_id = (SELECT command_id FROM device_commands WHERE device_id = %s AND status = 'sent' ORDER BY issued_at DESC LIMIT 1)",
+                            (utcnow(), dev_id, dev_id),
                         )
                         conn.commit()
                         cursor.close()
-                    except MySQLError as e:
+                    except Exception as e:
+                        conn.rollback()
                         print(f"  ⚠️ DB ERROR (cmd update): {e}")
                     finally:
-                        try:
-                            conn.close()
-                        except Exception:
-                            pass
+                        _putconn(conn)
                 break
 
 
@@ -427,7 +423,7 @@ def on_message(client, userdata, msg):
 def main():
     print("=" * 50)
     print("  🌱 NôngTech IoT Gateway")
-    print("  OhStem MQTT ↔ Railway MySQL")
+    print("  OhStem MQTT ↔ PostgreSQL")
     print("=" * 50)
 
     # Khởi tạo DB pool sớm

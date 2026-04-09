@@ -1,5 +1,5 @@
 /**
- * Mappers: convert MySQL row data → Frontend types
+ * Mappers: convert DB row data → Frontend types
  * Maps DB column names/enums to the frontend interfaces defined in @/types.
  */
 
@@ -30,7 +30,6 @@ import type {
   GardenSensorSummary,
   ZoneThresholds,
 } from "@/types";
-import type { RowDataPacket } from "mysql2/promise";
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -154,7 +153,7 @@ const BACKUP_STATUS_MAP: Record<string, BackupStatus> = {
 
 // ─── Row interfaces (what DB returns) ──────────────────────────────
 
-export interface UserRow extends RowDataPacket {
+export interface UserRow {
   user_id: number;
   username: string;
   email: string;
@@ -168,7 +167,7 @@ export interface UserRow extends RowDataPacket {
   assigned_farm_ids: string | null;
 }
 
-export interface FarmRow extends RowDataPacket {
+export interface FarmRow {
   farm_id: number;
   farm_code: string;
   farm_name: string;
@@ -180,7 +179,7 @@ export interface FarmRow extends RowDataPacket {
   owner_user_id: number | null;
 }
 
-export interface GardenRow extends RowDataPacket {
+export interface GardenRow {
   zone_id: number;
   farm_id: number;
   zone_name: string;
@@ -193,7 +192,7 @@ export interface GardenRow extends RowDataPacket {
   active_alert_count: number;
 }
 
-export interface DeviceRow extends RowDataPacket {
+export interface DeviceRow {
   device_id: number;
   device_code: string;
   device_name: string;
@@ -210,7 +209,7 @@ export interface DeviceRow extends RowDataPacket {
   unit: string | null;
 }
 
-export interface AlertRow extends RowDataPacket {
+export interface AlertRow {
   alert_id: number;
   zone_id: number;
   zone_name: string;
@@ -236,7 +235,7 @@ export interface AlertRow extends RowDataPacket {
   resolved_at: Date | null;
 }
 
-export interface AlertRuleRow extends RowDataPacket {
+export interface AlertRuleRow {
   alert_rule_id: number;
   rule_name: string;
   plant_type_id: number | null;
@@ -249,7 +248,7 @@ export interface AlertRuleRow extends RowDataPacket {
   created_at: Date;
 }
 
-export interface AlertRuleConditionRow extends RowDataPacket {
+export interface AlertRuleConditionRow {
   condition_id: number;
   alert_rule_id: number;
   metric_type: string;
@@ -259,7 +258,7 @@ export interface AlertRuleConditionRow extends RowDataPacket {
   logical_group: string;
 }
 
-export interface AlertActionRow extends RowDataPacket {
+export interface AlertActionRow {
   alert_action_id: number;
   alert_rule_id: number;
   action_type: string;
@@ -267,7 +266,7 @@ export interface AlertActionRow extends RowDataPacket {
   action_params: Record<string, unknown> | null;
 }
 
-export interface ScheduleRow extends RowDataPacket {
+export interface ScheduleRow {
   schedule_id: number;
   zone_id: number;
   zone_name: string;
@@ -284,7 +283,7 @@ export interface ScheduleRow extends RowDataPacket {
   created_at: Date;
 }
 
-export interface LogRow extends RowDataPacket {
+export interface LogRow {
   log_id: number;
   user_id: number | null;
   user_name: string | null;
@@ -298,7 +297,7 @@ export interface LogRow extends RowDataPacket {
   created_at: Date;
 }
 
-export interface BackupRow extends RowDataPacket {
+export interface BackupRow {
   backup_id: number;
   backup_type: string;
   file_path: string;
@@ -311,7 +310,7 @@ export interface BackupRow extends RowDataPacket {
   notes: string | null;
 }
 
-export interface AIEventRow extends RowDataPacket {
+export interface AIEventRow {
   event_id: number;
   zone_id: number;
   zone_name: string;
@@ -325,7 +324,7 @@ export interface AIEventRow extends RowDataPacket {
   detected_by_user: number | null;
 }
 
-export interface SensorLatestRow extends RowDataPacket {
+export interface SensorLatestRow {
   zone_id: number;
   device_type_id: number;
   value: number;
@@ -593,7 +592,7 @@ export function mapSensorSummary(
 
 export function mapZoneThresholds(
   zoneId: number,
-  rows: Array<RowDataPacket & { metric_type: string; min_value: number; max_value: number }>,
+  rows: Array<{ metric_type: string; min_value: number; max_value: number }>,
 ): ZoneThresholds {
   const thresholds: ZoneThresholds = {
     gardenId: sid("g", zoneId),

@@ -1,24 +1,25 @@
 # ============================================================
 # Docker Compose — NôngTech Smart Farm
-# Services: MySQL, Next.js App, IoT Gateway
+# Services: PostgreSQL, Next.js App, IoT Gateway
 # ============================================================
 
 services:
-  # --- MySQL Database ---
+  # --- PostgreSQL Database ---
   db:
-    image: mysql:8.0
+    image: postgres:16-alpine
     container_name: nongtech-db
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-nongtech_secret}
-      MYSQL_DATABASE: ${DB_NAME:-smart_farm}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nongtech_secret}
+      POSTGRES_DB: ${DB_NAME:-smart_farm}
     ports:
-      - "3306:3306"
+      - "5432:5432"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - pg_data:/var/lib/postgresql/data
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-nongtech_secret}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -38,9 +39,9 @@ services:
     environment:
       NODE_ENV: production
       DB_HOST: db
-      DB_PORT: 3306
-      DB_USER: root
-      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-nongtech_secret}
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-nongtech_secret}
       DB_NAME: ${DB_NAME:-smart_farm}
     depends_on:
       db:
@@ -61,9 +62,9 @@ services:
       MQTT_USERNAME: ${MQTT_USERNAME:-SmartFarm}
       MQTT_PASSWORD: ${MQTT_PASSWORD:-}
       DB_HOST: db
-      DB_PORT: 3306
-      DB_USER: root
-      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-nongtech_secret}
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-nongtech_secret}
       DB_NAME: ${DB_NAME:-smart_farm}
     depends_on:
       db:
@@ -72,7 +73,7 @@ services:
       - nongtech
 
 volumes:
-  mysql_data:
+  pg_data:
 
 networks:
   nongtech:

@@ -1,54 +1,59 @@
 -- ============================================================
--- DATABASE: Smart Farm Device Management System (Revised)
--- Hệ thống quản lý thiết bị nông trại thông minh - phiên bản mở rộng
+-- DATABASE: Smart Farm Device Management System (PostgreSQL)
+-- Hệ thống quản lý thiết bị nông trại thông minh
 -- ============================================================
 
-CREATE DATABASE IF NOT EXISTS smart_farm;
-USE railway;
+-- Drop tables in reverse dependency order
+DROP TABLE IF EXISTS gateway_sync_queue CASCADE;
+DROP TABLE IF EXISTS agricultural_reports CASCADE;
+DROP TABLE IF EXISTS data_restorations CASCADE;
+DROP TABLE IF EXISTS data_backups CASCADE;
+DROP TABLE IF EXISTS notifications CASCADE;
+DROP TABLE IF EXISTS system_logs CASCADE;
+DROP TABLE IF EXISTS ai_detection_events CASCADE;
+DROP TABLE IF EXISTS watering_modes CASCADE;
+DROP TABLE IF EXISTS automation_rule_actions CASCADE;
+DROP TABLE IF EXISTS automation_rule_conditions CASCADE;
+DROP TABLE IF EXISTS automation_rules CASCADE;
+DROP TABLE IF EXISTS alert_handling_logs CASCADE;
+DROP TABLE IF EXISTS alert_actions CASCADE;
+DROP TABLE IF EXISTS alert_rule_conditions CASCADE;
+DROP TABLE IF EXISTS alert_rules CASCADE;
+DROP TABLE IF EXISTS sensor_daily_statistics CASCADE;
+DROP TABLE IF EXISTS sensor_data_archive CASCADE;
+DROP TABLE IF EXISTS sensor_data CASCADE;
+DROP TABLE IF EXISTS zone_thresholds CASCADE;
+DROP TABLE IF EXISTS device_commands CASCADE;
+DROP TABLE IF EXISTS alerts CASCADE;
+DROP TABLE IF EXISTS schedules CASCADE;
+DROP TABLE IF EXISTS devices CASCADE;
+DROP TABLE IF EXISTS device_capabilities CASCADE;
+DROP TABLE IF EXISTS device_types CASCADE;
+DROP TABLE IF EXISTS user_zone_access CASCADE;
+DROP TABLE IF EXISTS farm_user_access CASCADE;
+DROP TABLE IF EXISTS farm_zones CASCADE;
+DROP TABLE IF EXISTS farms CASCADE;
+DROP TABLE IF EXISTS plant_types CASCADE;
+DROP TABLE IF EXISTS user_sessions CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS roles CASCADE;
 
-SET FOREIGN_KEY_CHECKS = 0;
-
-DROP TABLE IF EXISTS sensor_daily_statistics;
-DROP TABLE IF EXISTS alert_handling_logs;
-DROP TABLE IF EXISTS automation_rule_actions;
-DROP TABLE IF EXISTS automation_rule_conditions;
-DROP TABLE IF EXISTS automation_rules;
-DROP TABLE IF EXISTS alert_actions;
-DROP TABLE IF EXISTS alert_rule_conditions;
-DROP TABLE IF EXISTS alert_rules;
-DROP TABLE IF EXISTS gateway_sync_queue;
-DROP TABLE IF EXISTS agricultural_reports;
-DROP TABLE IF EXISTS data_restorations;
-DROP TABLE IF EXISTS data_backups;
-DROP TABLE IF EXISTS notifications;
-DROP TABLE IF EXISTS system_logs;
-DROP TABLE IF EXISTS ai_detection_events;
-DROP TABLE IF EXISTS watering_modes;
-DROP TABLE IF EXISTS schedules;
-DROP TABLE IF EXISTS device_commands;
-DROP TABLE IF EXISTS alerts;
-DROP TABLE IF EXISTS zone_thresholds;
-DROP TABLE IF EXISTS sensor_data_archive;
-DROP TABLE IF EXISTS sensor_data;
-DROP TABLE IF EXISTS devices;
-DROP TABLE IF EXISTS device_capabilities;
-DROP TABLE IF EXISTS device_types;
-DROP TABLE IF EXISTS user_zone_access;
-DROP TABLE IF EXISTS farm_user_access;
-DROP TABLE IF EXISTS farm_zones;
-DROP TABLE IF EXISTS farms;
-DROP TABLE IF EXISTS plant_types;
-DROP TABLE IF EXISTS user_sessions;
-DROP TABLE IF EXISTS users;
-DROP TABLE IF EXISTS roles;
-
-SET FOREIGN_KEY_CHECKS = 1;
+-- ============================================================
+-- Helper: auto-update updated_at trigger
+-- ============================================================
+CREATE OR REPLACE FUNCTION trigger_set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
 -- ============================================================
 -- 1. ROLES
 -- ============================================================
 CREATE TABLE roles (
-    role_id         INT AUTO_INCREMENT PRIMARY KEY,
+    role_id         SERIAL PRIMARY KEY,
     role_name       VARCHAR(30) NOT NULL UNIQUE,
     description     VARCHAR(255)
 );
@@ -57,68 +62,65 @@ CREATE TABLE roles (
 -- 2. USERS
 -- ============================================================
 CREATE TABLE users (
-    user_id          INT AUTO_INCREMENT PRIMARY KEY,
+    user_id          SERIAL PRIMARY KEY,
     username         VARCHAR(50)  NOT NULL UNIQUE,
     email            VARCHAR(100) NOT NULL UNIQUE,
     password_hash    VARCHAR(255) NOT NULL,
     full_name        VARCHAR(100),
     phone            VARCHAR(20),
-    role_id          INT NOT NULL,
+    role_id          INT NOT NULL REFERENCES roles(role_id),
     is_active        BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_users_role FOREIGN KEY (role_id) REFERENCES roles(role_id)
+    created_at       TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMP NOT NULL DEFAULT NOW()
 );
+CREATE TRIGGER set_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
 -- ============================================================
 -- 3. USER_SESSIONS
 -- ============================================================
 CREATE TABLE user_sessions (
-    session_id       INT AUTO_INCREMENT PRIMARY KEY,
-    user_id          INT NOT NULL,
+    session_id       SERIAL PRIMARY KEY,
+    user_id          INT NOT NULL REFERENCES users(user_id),
     token            VARCHAR(512) NOT NULL UNIQUE,
-    login_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    expires_at       DATETIME NOT NULL,
+    login_at         TIMESTAMP NOT NULL DEFAULT NOW(),
+    expires_at       TIMESTAMP NOT NULL,
     is_active        BOOLEAN NOT NULL DEFAULT TRUE,
     ip_address       VARCHAR(45),
-    user_agent       VARCHAR(512),
-    CONSTRAINT fk_sessions_user FOREIGN KEY (user_id) REFERENCES users(user_id)
+    user_agent       VARCHAR(512)
 );
 
 -- ============================================================
 -- 4. FARMS
 -- ============================================================
 CREATE TABLE farms (
-    farm_id          INT AUTO_INCREMENT PRIMARY KEY,
+    farm_id          SERIAL PRIMARY KEY,
     farm_code        VARCHAR(50) NOT NULL UNIQUE,
     farm_name        VARCHAR(100) NOT NULL,
     owner_name       VARCHAR(100),
     location_desc    VARCHAR(255),
     area_m2          DECIMAL(12,2),
-    status           ENUM('active','inactive') NOT NULL DEFAULT 'active',
-    created_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    status           VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active','inactive')),
+    created_at       TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMP NOT NULL DEFAULT NOW()
 );
+CREATE TRIGGER set_farms_updated_at BEFORE UPDATE ON farms FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
 -- ============================================================
 -- 5. FARM_USER_ACCESS
 -- ============================================================
 CREATE TABLE farm_user_access (
-    user_id          INT NOT NULL,
-    farm_id          INT NOT NULL,
-    granted_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    granted_by       INT,
-    PRIMARY KEY (user_id, farm_id),
-    CONSTRAINT fk_fua_user FOREIGN KEY (user_id) REFERENCES users(user_id),
-    CONSTRAINT fk_fua_farm FOREIGN KEY (farm_id) REFERENCES farms(farm_id),
-    CONSTRAINT fk_fua_granted_by FOREIGN KEY (granted_by) REFERENCES users(user_id)
+    user_id          INT NOT NULL REFERENCES users(user_id),
+    farm_id          INT NOT NULL REFERENCES farms(farm_id),
+    granted_at       TIMESTAMP NOT NULL DEFAULT NOW(),
+    granted_by       INT REFERENCES users(user_id),
+    PRIMARY KEY (user_id, farm_id)
 );
 
 -- ============================================================
 -- 6. PLANT_TYPES
 -- ============================================================
 CREATE TABLE plant_types (
-    plant_type_id                      INT AUTO_INCREMENT PRIMARY KEY,
+    plant_type_id                      SERIAL PRIMARY KEY,
     plant_name                         VARCHAR(100) NOT NULL UNIQUE,
     description                        TEXT,
     default_temp_min                   DECIMAL(5,2),
@@ -131,48 +133,45 @@ CREATE TABLE plant_types (
     default_light_max                  DECIMAL(10,2),
     default_watering_interval_minutes  INT,
     default_watering_duration_seconds  INT,
-    created_at                         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at                         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    created_at                         TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at                         TIMESTAMP NOT NULL DEFAULT NOW()
 );
+CREATE TRIGGER set_plant_types_updated_at BEFORE UPDATE ON plant_types FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
 -- ============================================================
 -- 7. FARM_ZONES
 -- ============================================================
 CREATE TABLE farm_zones (
-    zone_id            INT AUTO_INCREMENT PRIMARY KEY,
-    farm_id            INT NOT NULL,
+    zone_id            SERIAL PRIMARY KEY,
+    farm_id            INT NOT NULL REFERENCES farms(farm_id),
     zone_name          VARCHAR(100) NOT NULL,
-    plant_type_id      INT,
+    plant_type_id      INT REFERENCES plant_types(plant_type_id),
     area_m2            DECIMAL(10,2),
     location_desc      VARCHAR(255),
-    status             ENUM('active','inactive') NOT NULL DEFAULT 'active',
-    created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_zones_farm FOREIGN KEY (farm_id) REFERENCES farms(farm_id),
-    CONSTRAINT fk_zones_plant FOREIGN KEY (plant_type_id) REFERENCES plant_types(plant_type_id)
+    status             VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active','inactive')),
+    created_at         TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at         TIMESTAMP NOT NULL DEFAULT NOW()
 );
+CREATE TRIGGER set_farm_zones_updated_at BEFORE UPDATE ON farm_zones FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
 -- ============================================================
 -- 8. USER_ZONE_ACCESS
 -- ============================================================
 CREATE TABLE user_zone_access (
-    user_id           INT NOT NULL,
-    zone_id           INT NOT NULL,
-    granted_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    granted_by        INT,
-    PRIMARY KEY (user_id, zone_id),
-    CONSTRAINT fk_uza_user FOREIGN KEY (user_id) REFERENCES users(user_id),
-    CONSTRAINT fk_uza_zone FOREIGN KEY (zone_id) REFERENCES farm_zones(zone_id),
-    CONSTRAINT fk_uza_granted_by FOREIGN KEY (granted_by) REFERENCES users(user_id)
+    user_id           INT NOT NULL REFERENCES users(user_id),
+    zone_id           INT NOT NULL REFERENCES farm_zones(zone_id),
+    granted_at        TIMESTAMP NOT NULL DEFAULT NOW(),
+    granted_by        INT REFERENCES users(user_id),
+    PRIMARY KEY (user_id, zone_id)
 );
 
 -- ============================================================
 -- 9. DEVICE_TYPES
 -- ============================================================
 CREATE TABLE device_types (
-    device_type_id    INT AUTO_INCREMENT PRIMARY KEY,
+    device_type_id    SERIAL PRIMARY KEY,
     type_name         VARCHAR(50) NOT NULL UNIQUE,
-    category          ENUM('sensor','actuator') NOT NULL,
+    category          VARCHAR(20) NOT NULL CHECK (category IN ('sensor','actuator')),
     unit              VARCHAR(20),
     description       VARCHAR(255)
 );
@@ -181,388 +180,349 @@ CREATE TABLE device_types (
 -- 10. DEVICE_CAPABILITIES
 -- ============================================================
 CREATE TABLE device_capabilities (
-    capability_id     INT AUTO_INCREMENT PRIMARY KEY,
-    device_type_id    INT NOT NULL,
+    capability_id     SERIAL PRIMARY KEY,
+    device_type_id    INT NOT NULL REFERENCES device_types(device_type_id),
     capability_name   VARCHAR(100) NOT NULL,
-    description       VARCHAR(255),
-    CONSTRAINT fk_dcap_type FOREIGN KEY (device_type_id) REFERENCES device_types(device_type_id)
+    description       VARCHAR(255)
 );
 
 -- ============================================================
 -- 11. DEVICES
 -- ============================================================
 CREATE TABLE devices (
-    device_id          INT AUTO_INCREMENT PRIMARY KEY,
+    device_id          SERIAL PRIMARY KEY,
     device_code        VARCHAR(50) NOT NULL UNIQUE,
     device_name        VARCHAR(100) NOT NULL,
-    device_type_id     INT NOT NULL,
-    zone_id            INT NOT NULL,
+    device_type_id     INT NOT NULL REFERENCES device_types(device_type_id),
+    zone_id            INT NOT NULL REFERENCES farm_zones(zone_id),
     install_location   VARCHAR(255),
     is_controllable    BOOLEAN NOT NULL DEFAULT FALSE,
-    status             ENUM('online','offline','error','active') NOT NULL DEFAULT 'offline',
-    last_updated       DATETIME,
-    created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_devices_type FOREIGN KEY (device_type_id) REFERENCES device_types(device_type_id),
-    CONSTRAINT fk_devices_zone FOREIGN KEY (zone_id) REFERENCES farm_zones(zone_id)
+    status             VARCHAR(20) NOT NULL DEFAULT 'offline' CHECK (status IN ('online','offline','error','active')),
+    last_updated       TIMESTAMP,
+    created_at         TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 -- ============================================================
 -- 12. SENSOR_DATA
 -- ============================================================
 CREATE TABLE sensor_data (
-    sensor_data_id     BIGINT AUTO_INCREMENT PRIMARY KEY,
-    device_id          INT NOT NULL,
+    sensor_data_id     BIGSERIAL PRIMARY KEY,
+    device_id          INT NOT NULL REFERENCES devices(device_id),
     value              DECIMAL(10,2) NOT NULL,
-    recorded_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    synced             BOOLEAN NOT NULL DEFAULT TRUE,
-    CONSTRAINT fk_sdata_device FOREIGN KEY (device_id) REFERENCES devices(device_id),
-    INDEX idx_sensor_device_time (device_id, recorded_at)
+    recorded_at        TIMESTAMP NOT NULL DEFAULT NOW(),
+    synced             BOOLEAN NOT NULL DEFAULT TRUE
 );
+CREATE INDEX idx_sensor_device_time ON sensor_data (device_id, recorded_at);
 
 -- ============================================================
 -- 13. SENSOR_DATA_ARCHIVE
 -- ============================================================
 CREATE TABLE sensor_data_archive (
     sensor_data_id     BIGINT PRIMARY KEY,
-    device_id          INT NOT NULL,
+    device_id          INT NOT NULL REFERENCES devices(device_id),
     value              DECIMAL(10,2) NOT NULL,
-    recorded_at        DATETIME NOT NULL,
-    synced             BOOLEAN NOT NULL DEFAULT TRUE,
-    CONSTRAINT fk_sdata_arch_device FOREIGN KEY (device_id) REFERENCES devices(device_id),
-    INDEX idx_archive_device_time (device_id, recorded_at)
+    recorded_at        TIMESTAMP NOT NULL,
+    synced             BOOLEAN NOT NULL DEFAULT TRUE
 );
+CREATE INDEX idx_archive_device_time ON sensor_data_archive (device_id, recorded_at);
 
 -- ============================================================
 -- 14. SENSOR_DAILY_STATISTICS
 -- ============================================================
 CREATE TABLE sensor_daily_statistics (
-    stat_id            BIGINT AUTO_INCREMENT PRIMARY KEY,
-    device_id          INT NOT NULL,
+    stat_id            BIGSERIAL PRIMARY KEY,
+    device_id          INT NOT NULL REFERENCES devices(device_id),
     stat_date          DATE NOT NULL,
     min_value          DECIMAL(10,2),
     max_value          DECIMAL(10,2),
     avg_value          DECIMAL(10,2),
     total_records      INT NOT NULL DEFAULT 0,
-    created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY uq_device_stat_date (device_id, stat_date),
-    CONSTRAINT fk_sds_device FOREIGN KEY (device_id) REFERENCES devices(device_id)
+    created_at         TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE (device_id, stat_date)
 );
 
 -- ============================================================
 -- 15. ZONE_THRESHOLDS
 -- ============================================================
 CREATE TABLE zone_thresholds (
-    threshold_id       INT AUTO_INCREMENT PRIMARY KEY,
-    zone_id            INT NOT NULL,
-    metric_type        ENUM('temperature','air_humidity','soil_moisture','light') NOT NULL,
+    threshold_id       SERIAL PRIMARY KEY,
+    zone_id            INT NOT NULL REFERENCES farm_zones(zone_id),
+    metric_type        VARCHAR(30) NOT NULL CHECK (metric_type IN ('temperature','air_humidity','soil_moisture','light')),
     min_value          DECIMAL(10,2),
     max_value          DECIMAL(10,2),
-    updated_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uq_zone_metric (zone_id, metric_type),
-    CONSTRAINT fk_threshold_zone FOREIGN KEY (zone_id) REFERENCES farm_zones(zone_id)
+    updated_at         TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE (zone_id, metric_type)
 );
+CREATE TRIGGER set_zone_thresholds_updated_at BEFORE UPDATE ON zone_thresholds FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
 -- ============================================================
 -- 16. ALERT_RULES
 -- ============================================================
 CREATE TABLE alert_rules (
-    alert_rule_id      INT AUTO_INCREMENT PRIMARY KEY,
+    alert_rule_id      SERIAL PRIMARY KEY,
     rule_name          VARCHAR(100) NOT NULL,
-    plant_type_id      INT,
-    zone_id            INT,
-    severity           ENUM('info','warning','critical') NOT NULL DEFAULT 'warning',
+    plant_type_id      INT REFERENCES plant_types(plant_type_id),
+    zone_id            INT REFERENCES farm_zones(zone_id),
+    severity           VARCHAR(20) NOT NULL DEFAULT 'warning' CHECK (severity IN ('info','warning','critical')),
     message_template   VARCHAR(255) NOT NULL,
     is_active          BOOLEAN NOT NULL DEFAULT TRUE,
-    created_by         INT,
-    created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_arule_plant FOREIGN KEY (plant_type_id) REFERENCES plant_types(plant_type_id),
-    CONSTRAINT fk_arule_zone FOREIGN KEY (zone_id) REFERENCES farm_zones(zone_id),
-    CONSTRAINT fk_arule_user FOREIGN KEY (created_by) REFERENCES users(user_id)
+    created_by         INT REFERENCES users(user_id),
+    created_at         TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at         TIMESTAMP NOT NULL DEFAULT NOW()
 );
+CREATE TRIGGER set_alert_rules_updated_at BEFORE UPDATE ON alert_rules FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
 -- ============================================================
 -- 17. ALERT_RULE_CONDITIONS
 -- ============================================================
 CREATE TABLE alert_rule_conditions (
-    condition_id       INT AUTO_INCREMENT PRIMARY KEY,
-    alert_rule_id      INT NOT NULL,
-    metric_type        ENUM('temperature','air_humidity','soil_moisture','light') NOT NULL,
-    operator           ENUM('>','>=','<','<=','=','between') NOT NULL,
+    condition_id       SERIAL PRIMARY KEY,
+    alert_rule_id      INT NOT NULL REFERENCES alert_rules(alert_rule_id),
+    metric_type        VARCHAR(30) NOT NULL CHECK (metric_type IN ('temperature','air_humidity','soil_moisture','light')),
+    operator           VARCHAR(10) NOT NULL CHECK (operator IN ('>','>=','<','<=','=','between')),
     value1             DECIMAL(10,2) NOT NULL,
     value2             DECIMAL(10,2),
-    logical_group      VARCHAR(20) NOT NULL DEFAULT 'AND',
-    CONSTRAINT fk_arule_cond FOREIGN KEY (alert_rule_id) REFERENCES alert_rules(alert_rule_id)
+    logical_group      VARCHAR(20) NOT NULL DEFAULT 'AND'
 );
 
 -- ============================================================
 -- 18. ALERT_ACTIONS
 -- ============================================================
 CREATE TABLE alert_actions (
-    alert_action_id    INT AUTO_INCREMENT PRIMARY KEY,
-    alert_rule_id      INT NOT NULL,
-    action_type        ENUM('notify','turn_on_device','turn_off_device','create_ticket') NOT NULL,
-    target_device_id   INT,
-    action_params      JSON,
-    CONSTRAINT fk_aaction_rule FOREIGN KEY (alert_rule_id) REFERENCES alert_rules(alert_rule_id),
-    CONSTRAINT fk_aaction_device FOREIGN KEY (target_device_id) REFERENCES devices(device_id)
+    alert_action_id    SERIAL PRIMARY KEY,
+    alert_rule_id      INT NOT NULL REFERENCES alert_rules(alert_rule_id),
+    action_type        VARCHAR(30) NOT NULL CHECK (action_type IN ('notify','turn_on_device','turn_off_device','create_ticket')),
+    target_device_id   INT REFERENCES devices(device_id),
+    action_params      JSONB
 );
 
 -- ============================================================
 -- 19. ALERTS
 -- ============================================================
 CREATE TABLE alerts (
-    alert_id           INT AUTO_INCREMENT PRIMARY KEY,
-    zone_id            INT NOT NULL,
-    device_id          INT,
-    alert_rule_id      INT,
-    alert_type         ENUM('threshold_exceeded','plant_anomaly','fruit_classification','system','rule_based') NOT NULL,
-    source_type        ENUM('threshold_rule','ai_detection','system','manual') NOT NULL DEFAULT 'threshold_rule',
-    severity           ENUM('info','warning','critical') NOT NULL DEFAULT 'warning',
-    metric_type        ENUM('temperature','air_humidity','soil_moisture','light') NULL,
+    alert_id           SERIAL PRIMARY KEY,
+    zone_id            INT NOT NULL REFERENCES farm_zones(zone_id),
+    device_id          INT REFERENCES devices(device_id),
+    alert_rule_id      INT REFERENCES alert_rules(alert_rule_id),
+    alert_type         VARCHAR(30) NOT NULL CHECK (alert_type IN ('threshold_exceeded','plant_anomaly','fruit_classification','system','rule_based')),
+    source_type        VARCHAR(30) NOT NULL DEFAULT 'threshold_rule' CHECK (source_type IN ('threshold_rule','ai_detection','system','manual')),
+    severity           VARCHAR(20) NOT NULL DEFAULT 'warning' CHECK (severity IN ('info','warning','critical')),
+    metric_type        VARCHAR(30) CHECK (metric_type IN ('temperature','air_humidity','soil_moisture','light')),
     threshold_value    DECIMAL(10,2),
     actual_value       DECIMAL(10,2),
     message            TEXT NOT NULL,
-    status             ENUM('detected','processing','resolved') NOT NULL DEFAULT 'detected',
-    acknowledged_by    INT,
-    resolved_by        INT,
-    created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    acknowledged_at    DATETIME,
-    resolved_at        DATETIME,
-    CONSTRAINT fk_alerts_zone FOREIGN KEY (zone_id) REFERENCES farm_zones(zone_id),
-    CONSTRAINT fk_alerts_device FOREIGN KEY (device_id) REFERENCES devices(device_id),
-    CONSTRAINT fk_alerts_rule FOREIGN KEY (alert_rule_id) REFERENCES alert_rules(alert_rule_id),
-    CONSTRAINT fk_alerts_ack_user FOREIGN KEY (acknowledged_by) REFERENCES users(user_id),
-    CONSTRAINT fk_alerts_res_user FOREIGN KEY (resolved_by) REFERENCES users(user_id)
+    status             VARCHAR(20) NOT NULL DEFAULT 'detected' CHECK (status IN ('detected','processing','resolved')),
+    acknowledged_by    INT REFERENCES users(user_id),
+    resolved_by        INT REFERENCES users(user_id),
+    created_at         TIMESTAMP NOT NULL DEFAULT NOW(),
+    acknowledged_at    TIMESTAMP,
+    resolved_at        TIMESTAMP
 );
 
 -- ============================================================
 -- 20. ALERT_HANDLING_LOGS
 -- ============================================================
 CREATE TABLE alert_handling_logs (
-    handling_log_id    INT AUTO_INCREMENT PRIMARY KEY,
-    alert_id           INT NOT NULL,
-    handled_by         INT NOT NULL,
+    handling_log_id    SERIAL PRIMARY KEY,
+    alert_id           INT NOT NULL REFERENCES alerts(alert_id),
+    handled_by         INT NOT NULL REFERENCES users(user_id),
     action_taken       VARCHAR(255) NOT NULL,
     notes              TEXT,
-    created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_ahl_alert FOREIGN KEY (alert_id) REFERENCES alerts(alert_id),
-    CONSTRAINT fk_ahl_user FOREIGN KEY (handled_by) REFERENCES users(user_id)
+    created_at         TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 -- ============================================================
 -- 21. DEVICE_COMMANDS
 -- ============================================================
 CREATE TABLE device_commands (
-    command_id         INT AUTO_INCREMENT PRIMARY KEY,
-    device_id          INT NOT NULL,
+    command_id         SERIAL PRIMARY KEY,
+    device_id          INT NOT NULL REFERENCES devices(device_id),
     command_type       VARCHAR(50) NOT NULL,
-    parameters         JSON,
-    status             ENUM('pending','sent','executed','failed') NOT NULL DEFAULT 'pending',
-    issued_by          INT,
-    issued_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    executed_at        DATETIME,
-    CONSTRAINT fk_cmd_device FOREIGN KEY (device_id) REFERENCES devices(device_id),
-    CONSTRAINT fk_cmd_user FOREIGN KEY (issued_by) REFERENCES users(user_id)
+    parameters         JSONB,
+    status             VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','sent','executed','failed')),
+    issued_by          INT REFERENCES users(user_id),
+    issued_at          TIMESTAMP NOT NULL DEFAULT NOW(),
+    executed_at        TIMESTAMP
 );
 
 -- ============================================================
 -- 22. SCHEDULES
 -- ============================================================
 CREATE TABLE schedules (
-    schedule_id        INT AUTO_INCREMENT PRIMARY KEY,
-    zone_id            INT NOT NULL,
-    device_id          INT NOT NULL,
-    execution_mode     ENUM('manual','automatic','threshold_based') NOT NULL DEFAULT 'automatic',
-    schedule_type      ENUM('hourly','daily','weekly') NULL,
+    schedule_id        SERIAL PRIMARY KEY,
+    zone_id            INT NOT NULL REFERENCES farm_zones(zone_id),
+    device_id          INT NOT NULL REFERENCES devices(device_id),
+    execution_mode     VARCHAR(30) NOT NULL DEFAULT 'automatic' CHECK (execution_mode IN ('manual','automatic','threshold_based')),
+    schedule_type      VARCHAR(20) CHECK (schedule_type IN ('hourly','daily','weekly')),
     start_time         TIME,
     end_time           TIME,
-    day_of_week        TINYINT NULL COMMENT '0=Sun,1=Mon,...,6=Sat',
+    day_of_week        SMALLINT,
     duration_seconds   INT,
     is_active          BOOLEAN NOT NULL DEFAULT TRUE,
-    created_by         INT,
-    created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_sched_zone FOREIGN KEY (zone_id) REFERENCES farm_zones(zone_id),
-    CONSTRAINT fk_sched_device FOREIGN KEY (device_id) REFERENCES devices(device_id),
-    CONSTRAINT fk_sched_user FOREIGN KEY (created_by) REFERENCES users(user_id)
+    created_by         INT REFERENCES users(user_id),
+    created_at         TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at         TIMESTAMP NOT NULL DEFAULT NOW()
 );
+CREATE TRIGGER set_schedules_updated_at BEFORE UPDATE ON schedules FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
 -- ============================================================
 -- 23. WATERING_MODES
 -- ============================================================
 CREATE TABLE watering_modes (
-    watering_mode_id                   INT AUTO_INCREMENT PRIMARY KEY,
-    zone_id                            INT NOT NULL UNIQUE,
-    mode                               ENUM('auto_sensor','scheduled','manual') NOT NULL DEFAULT 'auto_sensor',
+    watering_mode_id                   SERIAL PRIMARY KEY,
+    zone_id                            INT NOT NULL UNIQUE REFERENCES farm_zones(zone_id),
+    mode                               VARCHAR(20) NOT NULL DEFAULT 'auto_sensor' CHECK (mode IN ('auto_sensor','scheduled','manual')),
     trigger_threshold_soil_moisture    DECIMAL(5,2),
-    updated_at                         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_wmode_zone FOREIGN KEY (zone_id) REFERENCES farm_zones(zone_id)
+    updated_at                         TIMESTAMP NOT NULL DEFAULT NOW()
 );
+CREATE TRIGGER set_watering_modes_updated_at BEFORE UPDATE ON watering_modes FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
 -- ============================================================
 -- 24. AUTOMATION_RULES
 -- ============================================================
 CREATE TABLE automation_rules (
-    automation_rule_id  INT AUTO_INCREMENT PRIMARY KEY,
+    automation_rule_id  SERIAL PRIMARY KEY,
     rule_name           VARCHAR(100) NOT NULL,
-    zone_id             INT NOT NULL,
-    plant_type_id       INT,
+    zone_id             INT NOT NULL REFERENCES farm_zones(zone_id),
+    plant_type_id       INT REFERENCES plant_types(plant_type_id),
     is_active           BOOLEAN NOT NULL DEFAULT TRUE,
     priority            INT NOT NULL DEFAULT 1,
-    created_by          INT,
-    created_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_autorule_zone FOREIGN KEY (zone_id) REFERENCES farm_zones(zone_id),
-    CONSTRAINT fk_autorule_plant FOREIGN KEY (plant_type_id) REFERENCES plant_types(plant_type_id),
-    CONSTRAINT fk_autorule_user FOREIGN KEY (created_by) REFERENCES users(user_id)
+    created_by          INT REFERENCES users(user_id),
+    created_at          TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMP NOT NULL DEFAULT NOW()
 );
+CREATE TRIGGER set_automation_rules_updated_at BEFORE UPDATE ON automation_rules FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
 -- ============================================================
 -- 25. AUTOMATION_RULE_CONDITIONS
 -- ============================================================
 CREATE TABLE automation_rule_conditions (
-    condition_id         INT AUTO_INCREMENT PRIMARY KEY,
-    automation_rule_id   INT NOT NULL,
-    metric_type          ENUM('temperature','air_humidity','soil_moisture','light') NOT NULL,
-    operator             ENUM('>','>=','<','<=','=','between') NOT NULL,
+    condition_id         SERIAL PRIMARY KEY,
+    automation_rule_id   INT NOT NULL REFERENCES automation_rules(automation_rule_id),
+    metric_type          VARCHAR(30) NOT NULL CHECK (metric_type IN ('temperature','air_humidity','soil_moisture','light')),
+    operator             VARCHAR(10) NOT NULL CHECK (operator IN ('>','>=','<','<=','=','between')),
     value1               DECIMAL(10,2) NOT NULL,
     value2               DECIMAL(10,2),
-    logical_group        VARCHAR(20) NOT NULL DEFAULT 'AND',
-    CONSTRAINT fk_autocond_rule FOREIGN KEY (automation_rule_id) REFERENCES automation_rules(automation_rule_id)
+    logical_group        VARCHAR(20) NOT NULL DEFAULT 'AND'
 );
 
 -- ============================================================
 -- 26. AUTOMATION_RULE_ACTIONS
 -- ============================================================
 CREATE TABLE automation_rule_actions (
-    action_id            INT AUTO_INCREMENT PRIMARY KEY,
-    automation_rule_id   INT NOT NULL,
-    device_id            INT NOT NULL,
+    action_id            SERIAL PRIMARY KEY,
+    automation_rule_id   INT NOT NULL REFERENCES automation_rules(automation_rule_id),
+    device_id            INT NOT NULL REFERENCES devices(device_id),
     command_type         VARCHAR(50) NOT NULL,
-    parameters           JSON,
-    execution_order      INT NOT NULL DEFAULT 1,
-    CONSTRAINT fk_autoact_rule FOREIGN KEY (automation_rule_id) REFERENCES automation_rules(automation_rule_id),
-    CONSTRAINT fk_autoact_device FOREIGN KEY (device_id) REFERENCES devices(device_id)
+    parameters           JSONB,
+    execution_order      INT NOT NULL DEFAULT 1
 );
 
 -- ============================================================
 -- 27. AI_DETECTION_EVENTS
 -- ============================================================
 CREATE TABLE ai_detection_events (
-    event_id             INT AUTO_INCREMENT PRIMARY KEY,
-    zone_id              INT NOT NULL,
-    detection_type       ENUM('plant_anomaly','fruit_classification') NOT NULL,
+    event_id             SERIAL PRIMARY KEY,
+    zone_id              INT NOT NULL REFERENCES farm_zones(zone_id),
+    detection_type       VARCHAR(30) NOT NULL CHECK (detection_type IN ('plant_anomaly','fruit_classification')),
     image_path           VARCHAR(500) NOT NULL,
     result_label         VARCHAR(100) NOT NULL,
     confidence           DECIMAL(5,4),
-    details              JSON,
-    alert_id             INT,
-    created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    detected_by_user     INT,
-    CONSTRAINT fk_ai_zone FOREIGN KEY (zone_id) REFERENCES farm_zones(zone_id),
-    CONSTRAINT fk_ai_alert FOREIGN KEY (alert_id) REFERENCES alerts(alert_id),
-    CONSTRAINT fk_ai_user FOREIGN KEY (detected_by_user) REFERENCES users(user_id)
+    details              JSONB,
+    alert_id             INT REFERENCES alerts(alert_id),
+    created_at           TIMESTAMP NOT NULL DEFAULT NOW(),
+    detected_by_user     INT REFERENCES users(user_id)
 );
 
 -- ============================================================
 -- 28. SYSTEM_LOGS
 -- ============================================================
 CREATE TABLE system_logs (
-    log_id               BIGINT AUTO_INCREMENT PRIMARY KEY,
-    user_id              INT,
-    action_type          ENUM('device_toggle','config_change','alert','user_access','schedule_change','system_event','rule_change','backup_restore') NOT NULL,
+    log_id               BIGSERIAL PRIMARY KEY,
+    user_id              INT REFERENCES users(user_id),
+    action_type          VARCHAR(30) NOT NULL CHECK (action_type IN ('device_toggle','config_change','alert','user_access','schedule_change','system_event','rule_change','backup_restore')),
     entity_type          VARCHAR(50) NOT NULL,
     entity_id            INT,
     description          TEXT NOT NULL,
-    value_before         JSON,
-    value_after          JSON,
+    value_before         JSONB,
+    value_after          JSONB,
     ip_address           VARCHAR(45),
-    created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_logs_user FOREIGN KEY (user_id) REFERENCES users(user_id),
-    INDEX idx_logs_action_time (action_type, created_at),
-    INDEX idx_logs_entity (entity_type, entity_id)
+    created_at           TIMESTAMP NOT NULL DEFAULT NOW()
 );
+CREATE INDEX idx_logs_action_time ON system_logs (action_type, created_at);
+CREATE INDEX idx_logs_entity ON system_logs (entity_type, entity_id);
 
 -- ============================================================
 -- 29. NOTIFICATIONS
 -- ============================================================
 CREATE TABLE notifications (
-    notification_id      INT AUTO_INCREMENT PRIMARY KEY,
-    user_id              INT NOT NULL,
-    alert_id             INT,
-    channel              ENUM('dashboard','web_push','mobile_push') NOT NULL,
+    notification_id      SERIAL PRIMARY KEY,
+    user_id              INT NOT NULL REFERENCES users(user_id),
+    alert_id             INT REFERENCES alerts(alert_id),
+    channel              VARCHAR(20) NOT NULL CHECK (channel IN ('dashboard','web_push','mobile_push')),
     title                VARCHAR(200) NOT NULL,
     body                 TEXT NOT NULL,
     is_read              BOOLEAN NOT NULL DEFAULT FALSE,
-    sent_at              DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    read_at              DATETIME,
-    CONSTRAINT fk_notif_user FOREIGN KEY (user_id) REFERENCES users(user_id),
-    CONSTRAINT fk_notif_alert FOREIGN KEY (alert_id) REFERENCES alerts(alert_id)
+    sent_at              TIMESTAMP NOT NULL DEFAULT NOW(),
+    read_at              TIMESTAMP
 );
 
 -- ============================================================
 -- 30. DATA_BACKUPS
 -- ============================================================
 CREATE TABLE data_backups (
-    backup_id            INT AUTO_INCREMENT PRIMARY KEY,
-    backup_type          ENUM('auto','manual') NOT NULL,
-    schedule_type        ENUM('daily','weekly') NULL,
+    backup_id            SERIAL PRIMARY KEY,
+    backup_type          VARCHAR(20) NOT NULL CHECK (backup_type IN ('auto','manual')),
+    schedule_type        VARCHAR(20) CHECK (schedule_type IN ('daily','weekly')),
     file_path            VARCHAR(500) NOT NULL,
     file_size_bytes      BIGINT,
-    status               ENUM('in_progress','completed','failed') NOT NULL DEFAULT 'in_progress',
-    created_by           INT,
-    created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    completed_at         DATETIME,
-    notes                TEXT,
-    CONSTRAINT fk_backup_user FOREIGN KEY (created_by) REFERENCES users(user_id)
+    status               VARCHAR(20) NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress','completed','failed')),
+    created_by           INT REFERENCES users(user_id),
+    created_at           TIMESTAMP NOT NULL DEFAULT NOW(),
+    completed_at         TIMESTAMP,
+    notes                TEXT
 );
 
 -- ============================================================
 -- 31. DATA_RESTORATIONS
 -- ============================================================
 CREATE TABLE data_restorations (
-    restore_id           INT AUTO_INCREMENT PRIMARY KEY,
-    backup_id            INT NOT NULL,
-    restored_by          INT NOT NULL,
-    status               ENUM('in_progress','completed','failed') NOT NULL DEFAULT 'in_progress',
-    started_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    completed_at         DATETIME,
-    notes                TEXT,
-    CONSTRAINT fk_restore_backup FOREIGN KEY (backup_id) REFERENCES data_backups(backup_id),
-    CONSTRAINT fk_restore_user FOREIGN KEY (restored_by) REFERENCES users(user_id)
+    restore_id           SERIAL PRIMARY KEY,
+    backup_id            INT NOT NULL REFERENCES data_backups(backup_id),
+    restored_by          INT NOT NULL REFERENCES users(user_id),
+    status               VARCHAR(20) NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress','completed','failed')),
+    started_at           TIMESTAMP NOT NULL DEFAULT NOW(),
+    completed_at         TIMESTAMP,
+    notes                TEXT
 );
 
 -- ============================================================
 -- 32. AGRICULTURAL_REPORTS
 -- ============================================================
 CREATE TABLE agricultural_reports (
-    report_id            INT AUTO_INCREMENT PRIMARY KEY,
-    zone_id              INT NOT NULL,
-    report_type          ENUM('growth_analysis','environment_analysis','harvest_recommendation','seasonal_summary') NOT NULL,
+    report_id            SERIAL PRIMARY KEY,
+    zone_id              INT NOT NULL REFERENCES farm_zones(zone_id),
+    report_type          VARCHAR(40) NOT NULL CHECK (report_type IN ('growth_analysis','environment_analysis','harvest_recommendation','seasonal_summary')),
     date_from            DATE NOT NULL,
     date_to              DATE NOT NULL,
-    content              JSON NOT NULL,
+    content              JSONB NOT NULL,
     export_file_path     VARCHAR(500),
-    generated_by         INT,
-    created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_report_zone FOREIGN KEY (zone_id) REFERENCES farm_zones(zone_id),
-    CONSTRAINT fk_report_user FOREIGN KEY (generated_by) REFERENCES users(user_id)
+    generated_by         INT REFERENCES users(user_id),
+    created_at           TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 -- ============================================================
 -- 33. GATEWAY_SYNC_QUEUE
 -- ============================================================
 CREATE TABLE gateway_sync_queue (
-    sync_id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-    device_id            INT NOT NULL,
-    payload              JSON NOT NULL,
-    recorded_at          DATETIME NOT NULL,
+    sync_id              BIGSERIAL PRIMARY KEY,
+    device_id            INT NOT NULL REFERENCES devices(device_id),
+    payload              JSONB NOT NULL,
+    recorded_at          TIMESTAMP NOT NULL,
     synced               BOOLEAN NOT NULL DEFAULT FALSE,
-    synced_at            DATETIME,
-    CONSTRAINT fk_sync_device FOREIGN KEY (device_id) REFERENCES devices(device_id),
-    INDEX idx_sync_pending (synced, recorded_at)
+    synced_at            TIMESTAMP
 );
+CREATE INDEX idx_sync_pending ON gateway_sync_queue (synced, recorded_at);
 
 -- ============================================================
 -- SEED DATA
@@ -661,13 +621,13 @@ INSERT INTO sensor_data (device_id, value, recorded_at, synced) VALUES
 (2, 72.00, NOW(), TRUE),
 (3, 43.00, NOW(), TRUE),
 (4, 18500.00, NOW(), TRUE),
-(1, 29.10, DATE_SUB(NOW(), INTERVAL 1 HOUR), TRUE),
-(3, 41.50, DATE_SUB(NOW(), INTERVAL 1 HOUR), TRUE);
+(1, 29.10, NOW() - INTERVAL '1 hour', TRUE),
+(3, 41.50, NOW() - INTERVAL '1 hour', TRUE);
 
 INSERT INTO sensor_daily_statistics (device_id, stat_date, min_value, max_value, avg_value, total_records) VALUES
-(1, CURDATE(), 27.80, 29.10, 28.47, 24),
-(3, CURDATE(), 41.50, 46.00, 43.80, 24),
-(4, CURDATE(), 15000.00, 22000.00, 18400.00, 24);
+(1, CURRENT_DATE, 27.80, 29.10, 28.47, 24),
+(3, CURRENT_DATE, 41.50, 46.00, 43.80, 24),
+(4, CURRENT_DATE, 15000.00, 22000.00, 18400.00, 24);
 
 INSERT INTO alert_rules (rule_name, plant_type_id, zone_id, severity, message_template, is_active, created_by) VALUES
 ('Cảnh báo héo cây cà chua', 2, 2, 'critical', 'Nguy cơ héo cây cà chua do nhiệt độ cao và độ ẩm đất thấp', TRUE, 2),
@@ -679,9 +639,9 @@ INSERT INTO alert_rule_conditions (alert_rule_id, metric_type, operator, value1,
 (2, 'soil_moisture', '<', 45.00, NULL, 'AND');
 
 INSERT INTO alert_actions (alert_rule_id, action_type, target_device_id, action_params) VALUES
-(1, 'notify', NULL, JSON_OBJECT('channel', 'mobile_push')),
-(1, 'turn_on_device', 7, JSON_OBJECT('duration_seconds', 300)),
-(2, 'notify', NULL, JSON_OBJECT('channel', 'dashboard'));
+(1, 'notify', NULL, '{"channel": "mobile_push"}'),
+(1, 'turn_on_device', 7, '{"duration_seconds": 300}'),
+(2, 'notify', NULL, '{"channel": "dashboard"}');
 
 INSERT INTO alerts (zone_id, device_id, alert_rule_id, alert_type, source_type, severity, metric_type, threshold_value, actual_value, message, status) VALUES
 (1, 3, 2, 'rule_based', 'threshold_rule', 'warning', 'soil_moisture', 45.00, 43.00, 'Cải xanh có nguy cơ thiếu ẩm do độ ẩm đất thấp', 'detected');
@@ -690,8 +650,8 @@ INSERT INTO alert_handling_logs (alert_id, handled_by, action_taken, notes) VALU
 (1, 2, 'Kiểm tra khu vườn và chuẩn bị tưới', 'Đã xác minh cảm biến hoạt động bình thường');
 
 INSERT INTO device_commands (device_id, command_type, parameters, status, issued_by, issued_at) VALUES
-(5, 'turn_on', JSON_OBJECT('duration_seconds', 120), 'executed', 2, NOW()),
-(6, 'turn_on', JSON_OBJECT('mode', 'supplement_light', 'duration_seconds', 3600), 'sent', 2, NOW());
+(5, 'turn_on', '{"duration_seconds": 120}', 'executed', 2, NOW()),
+(6, 'turn_on', '{"mode": "supplement_light", "duration_seconds": 3600}', 'sent', 2, NOW());
 
 INSERT INTO automation_rules (rule_name, zone_id, plant_type_id, is_active, priority, created_by) VALUES
 ('Tự động bật bơm khi đất khô KV1', 1, 1, TRUE, 1, 2),
@@ -704,21 +664,21 @@ INSERT INTO automation_rule_conditions (automation_rule_id, metric_type, operato
 (3, 'temperature', '>', 36.00, NULL, 'AND');
 
 INSERT INTO automation_rule_actions (automation_rule_id, device_id, command_type, parameters, execution_order) VALUES
-(1, 5, 'turn_on', JSON_OBJECT('duration_seconds', 180), 1),
-(2, 6, 'turn_on', JSON_OBJECT('duration_seconds', 7200), 1),
-(3, 7, 'turn_on', JSON_OBJECT('duration_seconds', 300), 1);
+(1, 5, 'turn_on', '{"duration_seconds": 180}', 1),
+(2, 6, 'turn_on', '{"duration_seconds": 7200}', 1),
+(3, 7, 'turn_on', '{"duration_seconds": 300}', 1);
 
 INSERT INTO ai_detection_events (zone_id, detection_type, image_path, result_label, confidence, details, alert_id, detected_by_user) VALUES
-(2, 'plant_anomaly', '/images/zone2/tomato_leaf_001.jpg', 'vang_la', 0.9321, JSON_OBJECT('note', 'Dấu hiệu vàng lá mức độ trung bình'), NULL, 2),
-(1, 'fruit_classification', '/images/zone1/harvest_001.jpg', 'trai_tot', 0.9812, JSON_OBJECT('rgb_color', 'green'), NULL, 2);
+(2, 'plant_anomaly', '/images/zone2/tomato_leaf_001.jpg', 'vang_la', 0.9321, '{"note": "Dấu hiệu vàng lá mức độ trung bình"}', NULL, 2),
+(1, 'fruit_classification', '/images/zone1/harvest_001.jpg', 'trai_tot', 0.9812, '{"rgb_color": "green"}', NULL, 2);
 
 INSERT INTO notifications (user_id, alert_id, channel, title, body, is_read) VALUES
 (2, 1, 'dashboard', 'Cảnh báo thiếu ẩm', 'Khu vườn 1 đang có nguy cơ thiếu ẩm.', FALSE),
 (3, 1, 'mobile_push', 'Cảnh báo khu vườn', 'Độ ẩm đất tại khu vườn 1 thấp hơn ngưỡng.', FALSE);
 
 INSERT INTO system_logs (user_id, action_type, entity_type, entity_id, description, value_before, value_after, ip_address) VALUES
-(2, 'schedule_change', 'schedules', 1, 'Tạo lịch tưới tự động cho máy bơm KV1', NULL, JSON_OBJECT('execution_mode', 'automatic', 'schedule_type', 'daily', 'start_time', '06:00:00'), '192.168.1.10'),
-(1, 'rule_change', 'automation_rules', 1, 'Tạo rule tự động bật bơm khi đất khô', NULL, JSON_OBJECT('rule_name', 'Tự động bật bơm khi đất khô KV1'), '192.168.1.1');
+(2, 'schedule_change', 'schedules', 1, 'Tạo lịch tưới tự động cho máy bơm KV1', NULL, '{"execution_mode": "automatic", "schedule_type": "daily", "start_time": "06:00:00"}', '192.168.1.10'),
+(1, 'rule_change', 'automation_rules', 1, 'Tạo rule tự động bật bơm khi đất khô', NULL, '{"rule_name": "Tự động bật bơm khi đất khô KV1"}', '192.168.1.1');
 
 INSERT INTO data_backups (backup_type, schedule_type, file_path, file_size_bytes, status, created_by, created_at, completed_at, notes) VALUES
 ('auto', 'daily', '/backups/smart_farm_daily_001.zip', 10485760, 'completed', 1, NOW(), NOW(), 'Sao lưu định kỳ hằng ngày'),
@@ -728,16 +688,16 @@ INSERT INTO data_restorations (backup_id, restored_by, status, started_at, compl
 (2, 1, 'completed', NOW(), NOW(), 'Khôi phục môi trường test');
 
 INSERT INTO agricultural_reports (zone_id, report_type, date_from, date_to, content, export_file_path, generated_by) VALUES
-(1, 'environment_analysis', '2026-03-01', '2026-03-23', JSON_OBJECT('avg_temp', 28.4, 'avg_soil_moisture', 44.2, 'recommendation', 'Tăng tần suất tưới vào buổi sáng'), '/reports/zone1_env_20260323.pdf', 2),
-(2, 'harvest_recommendation', '2026-03-01', '2026-03-23', JSON_OBJECT('ripeness_score', 0.82, 'recommendation', 'Có thể thu hoạch trong 3-5 ngày tới'), '/reports/zone2_harvest_20260323.pdf', 2);
+(1, 'environment_analysis', '2026-03-01', '2026-03-23', '{"avg_temp": 28.4, "avg_soil_moisture": 44.2, "recommendation": "Tăng tần suất tưới vào buổi sáng"}', '/reports/zone1_env_20260323.pdf', 2),
+(2, 'harvest_recommendation', '2026-03-01', '2026-03-23', '{"ripeness_score": 0.82, "recommendation": "Có thể thu hoạch trong 3-5 ngày tới"}', '/reports/zone2_harvest_20260323.pdf', 2);
 
 INSERT INTO gateway_sync_queue (device_id, payload, recorded_at, synced, synced_at) VALUES
-(3, JSON_OBJECT('value', 39.50, 'metric', 'soil_moisture'), DATE_SUB(NOW(), INTERVAL 10 MINUTE), FALSE, NULL),
-(1, JSON_OBJECT('value', 30.20, 'metric', 'temperature'), DATE_SUB(NOW(), INTERVAL 8 MINUTE), TRUE, NOW());
+(3, '{"value": 39.50, "metric": "soil_moisture"}', NOW() - INTERVAL '10 minutes', FALSE, NULL),
+(1, '{"value": 30.20, "metric": "temperature"}', NOW() - INTERVAL '8 minutes', TRUE, NOW());
 
 INSERT INTO user_sessions (user_id, token, expires_at, is_active, ip_address, user_agent) VALUES
-(1, 'token_admin_001', DATE_ADD(NOW(), INTERVAL 1 DAY), TRUE, '192.168.1.1', 'Mozilla/5.0'),
-(2, 'token_farmer_001', DATE_ADD(NOW(), INTERVAL 1 DAY), TRUE, '192.168.1.10', 'Mozilla/5.0');
+(1, 'token_admin_001', NOW() + INTERVAL '1 day', TRUE, '192.168.1.1', 'Mozilla/5.0'),
+(2, 'token_farmer_001', NOW() + INTERVAL '1 day', TRUE, '192.168.1.10', 'Mozilla/5.0');
 
 -- ============================================================
 -- VIEWS
