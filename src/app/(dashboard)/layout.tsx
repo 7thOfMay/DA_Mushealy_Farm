@@ -45,7 +45,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="max-w-md text-center space-y-3">
           <p className="text-[1.25rem] font-bold text-[#C0392B]">Không thể kết nối cơ sở dữ liệu</p>
           <p className="text-[0.875rem] text-[#5C7A6A]">
-            Hệ thống yêu cầu kết nối MySQL. Vui lòng kiểm tra cấu hình DB_HOST, DB_USER, DB_PASSWORD, DB_NAME trong file .env.local
+            Hệ thống yêu cầu kết nối PostgreSQL. Vui lòng kiểm tra cấu hình POSTGRES_URL hoặc DB_HOST, DB_USER, DB_PASSWORD, DB_NAME trong file .env.local
           </p>
         </div>
       </div>
