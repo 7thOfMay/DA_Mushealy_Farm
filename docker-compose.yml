@@ -1,0 +1,79 @@
+# ============================================================
+# Docker Compose — NôngTech Smart Farm
+# Services: MySQL, Next.js App, IoT Gateway
+# ============================================================
+
+services:
+  # --- MySQL Database ---
+  db:
+    image: mysql:8.0
+    container_name: nongtech-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-nongtech_secret}
+      MYSQL_DATABASE: ${DB_NAME:-smart_farm}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-nongtech_secret}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - nongtech
+
+  # --- Next.js Web Application ---
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nongtech-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-nongtech_secret}
+      DB_NAME: ${DB_NAME:-smart_farm}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - nongtech
+
+  # --- IoT MQTT Gateway (Python) ---
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    container_name: nongtech-gateway
+    restart: unless-stopped
+    environment:
+      MQTT_BROKER: ${MQTT_BROKER:-mqtt.ohstem.vn}
+      MQTT_PORT: ${MQTT_PORT:-1883}
+      MQTT_USERNAME: ${MQTT_USERNAME:-SmartFarm}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-}
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-nongtech_secret}
+      DB_NAME: ${DB_NAME:-smart_farm}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - nongtech
+
+volumes:
+  mysql_data:
+
+networks:
+  nongtech:
+    driver: bridge
