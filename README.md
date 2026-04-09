@@ -1,64 +1,218 @@
 # Mushealy — Smart Farm Management System
 
-Hệ thống quản lý nông trại thông minh, xây dựng bằng **Next.js 14 App Router**, TypeScript, Tailwind CSS và Zustand.
+Hệ thống quản lý nông trại thông minh tích hợp IoT, xây dựng bằng **Next.js 14**, **PostgreSQL**, **MQTT** và **Python Gateway**.
 
-### Tính năng chính
-- 🌿 Dashboard giám sát cảm biến realtime (nhiệt độ, độ ẩm, ánh sáng, pH)
-- 💧 Điều khiển thiết bị tưới tiêu thông minh
-- 📊 Báo cáo & phân tích dữ liệu
-- 🤖 AI chẩn đoán sức khỏe cây trồng
-- 📅 Lịch chăm sóc tự động
-- 🔐 Phân quyền ADMIN / FARMER
-
-### Demo credentials
-| Email | Mật khẩu | Vai trò |
-|---|---|---|
-| an.nguyen@nongtech.vn | 123456 | Admin |
-| bich.tran@nongtech.vn | 123456 | Nông dân |
-| cuong.le@nongtech.vn | 123456 | Nông dân |
-
-Ghi chú:
-- Tài khoản `dung.pham@nongtech.vn` đang ở trạng thái `inactive` nên sẽ bị chuyển qua trang chờ kích hoạt.
-- Nếu bạn đã đổi mật khẩu trong màn Users, mật khẩu local sẽ ưu tiên theo dữ liệu đã lưu trong trình duyệt.
-
-### Auth provider mode
-- Mặc định app chạy auth local mock (không cần backend): `NEXT_PUBLIC_AUTH_PROVIDER=local`
-- Kiến trúc đã có adapter để chuyển sang backend auth: `NEXT_PUBLIC_AUTH_PROVIDER=supabase`
-- Nếu đặt `supabase` nhưng chưa tích hợp backend, login sẽ báo rõ trạng thái provider chưa cấu hình.
+> Đồ án thiết kế hệ thống giám sát & điều khiển nông trại từ xa qua Internet.
 
 ---
 
-## Getting Started
+## Tổng quan
 
-First, run the development server:
+Mushealy là nền tảng quản lý nông trại thông minh cho phép:
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **Giám sát cảm biến realtime** — nhiệt độ, độ ẩm không khí, độ ẩm đất, ánh sáng (lux)
+- **Điều khiển thiết bị từ xa** — máy bơm, quạt, đèn, van nước qua MQTT
+- **Cảnh báo tự động** — thiết lập ngưỡng cảnh báo cho từng loại cảm biến
+- **Lịch tưới tiêu** — lên lịch tự động hoặc theo ngưỡng cảm biến
+- **AI chẩn đoán cây trồng** — upload ảnh phát hiện bệnh & phân loại trái cây
+- **Quản lý đa nông trại** — phân cấp Nông trại → Khu vực → Thiết bị
+- **Phân quyền** — ADMIN (quản lý toàn hệ thống) / FARMER (quản lý nông trại được gán)
+- **Sao lưu & phục hồi dữ liệu**
+- **Nhật ký hệ thống** (audit log)
+
+---
+
+## Tech Stack
+
+| Thành phần | Công nghệ |
+|---|---|
+| Frontend | Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS |
+| State Management | Zustand (localStorage persistence), TanStack React Query |
+| UI Components | Radix UI, Recharts, Framer Motion, Lucide Icons |
+| Backend API | Next.js API Routes |
+| Database | PostgreSQL 16 (Neon trên Vercel / Docker local) |
+| IoT Gateway | Python 3.11, paho-mqtt |
+| MQTT Broker | OhStem (`mqtt.ohstem.vn`) |
+| Deployment | Vercel (web app) + Docker Compose (full stack) |
+
+---
+
+## Kiến trúc hệ thống
+
+```
+┌──────────────┐     MQTT      ┌──────────────────┐     SQL      ┌────────────┐
+│  IoT Devices │ ◄──────────►  │  Python Gateway   │ ◄──────────► │ PostgreSQL │
+│  (Yolo:Bit)  │               │  (paho-mqtt)      │              │            │
+└──────────────┘               └──────────────────┘              └─────┬──────┘
+                                                                       │
+                                                                       │ SQL
+                                                                       │
+                                                                 ┌─────▼──────┐
+                                                                 │  Next.js   │
+                                                                 │  API Routes│
+                                                                 └─────┬──────┘
+                                                                       │
+                                                                       │ REST
+                                                                       │
+                                                                 ┌─────▼──────┐
+                                                                 │  React UI  │
+                                                                 │  (Browser) │
+                                                                 └────────────┘
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**Luồng dữ liệu:**
+1. Cảm biến IoT gửi dữ liệu qua MQTT đến OhStem broker
+2. Python Gateway nhận dữ liệu, lưu vào PostgreSQL
+3. Next.js API đọc DB, trả dữ liệu cho frontend hiển thị
+4. Người dùng bật/tắt thiết bị trên UI → API ghi lệnh vào DB → Gateway poll lệnh → publish MQTT → thiết bị thực thi
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Cấu trúc dự án
 
-## Learn More
+```
+DA_Mushealy_Farm/
+├── database/
+│   └── schema.sql              # Schema PostgreSQL (33 bảng) + seed data
+├── gateway/
+│   ├── gateway.py              # MQTT gateway chính
+│   ├── config.py               # Cấu hình MQTT & mapping feeds
+│   ├── Dockerfile
+│   └── requirements.txt
+├── src/
+│   ├── app/
+│   │   ├── (auth)/             # Trang login, pending activation
+│   │   ├── (dashboard)/        # Trang chính: farms, devices, schedules, alerts, AI...
+│   │   └── api/                # API routes (farms, devices, sensors, alerts, ...)
+│   ├── components/             # UI components (Sidebar, SensorChart, AlertPanel, ...)
+│   ├── hooks/                  # Custom hooks (useAuth, useApiHydration)
+│   ├── lib/
+│   │   ├── db.ts               # PostgreSQL connection pool
+│   │   ├── store.ts            # Zustand store
+│   │   ├── api/queries.ts      # SQL queries
+│   │   └── ...
+│   ├── types/                  # TypeScript interfaces
+│   └── middleware.ts           # Auth & route protection
+├── docker-compose.yml          # 3 services: db, app, gateway
+├── Dockerfile                  # Multi-stage build Next.js
+└── package.json
+```
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Cài đặt & Chạy
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Yêu cầu
 
-## Deploy on Vercel
+- Node.js 18+
+- PostgreSQL 16+ (hoặc Docker)
+- Python 3.11+ (cho IoT Gateway)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 1. Clone & cài dependencies
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+git clone https://github.com/<your-username>/DA_Mushealy_Farm.git
+cd DA_Mushealy_Farm
+npm install
+```
+
+### 2. Cấu hình biến môi trường
+
+Tạo file `.env.local` tại thư mục gốc:
+
+```env
+# PostgreSQL
+POSTGRES_URL=postgresql://user:password@localhost:5432/smart_farm
+
+# Auth provider: "local" (mock, không cần backend) hoặc "supabase"
+NEXT_PUBLIC_AUTH_PROVIDER=local
+```
+
+Cho IoT Gateway, tạo file `.env` trong thư mục `gateway/`:
+
+```env
+MQTT_BROKER=mqtt.ohstem.vn
+MQTT_PORT=1883
+MQTT_USERNAME=SmartFarm
+MQTT_PASSWORD=
+
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=your_password
+DB_NAME=smart_farm
+```
+
+### 3. Khởi tạo database
+
+```bash
+psql -U postgres -d smart_farm -f database/schema.sql
+```
+
+### 4. Chạy ứng dụng
+
+```bash
+# Chạy Next.js dev server
+npm run dev
+
+# Chạy IoT Gateway (terminal riêng)
+cd gateway
+pip install -r requirements.txt
+python gateway.py
+```
+
+Mở [http://localhost:3000](http://localhost:3000) để truy cập.
+
+### Hoặc chạy bằng Docker Compose (full stack)
+
+```bash
+docker compose up -d
+```
+
+Lệnh trên sẽ khởi chạy 3 service: PostgreSQL, Next.js app, và MQTT Gateway.
+
+---
+
+## IoT — MQTT Feeds
+
+| Feed | Hướng | Thiết bị | Mô tả |
+|---|---|---|---|
+| `V1` | Sensor → DB | Nhiệt kế | Nhiệt độ không khí (°C) |
+| `V2` | Sensor → DB | Cảm biến độ ẩm | Độ ẩm không khí (%) |
+| `V3` | Sensor → DB | Cảm biến đất | Độ ẩm đất (%) |
+| `V4` | Sensor → DB | Cảm biến ánh sáng | Cường độ sáng (lux) |
+| `V10` | DB → Actuator | Máy bơm | Bật/tắt (1/0) |
+
+---
+
+## Deployment
+
+### Vercel (Web App)
+
+Dự án đã được cấu hình deploy trên Vercel với Neon PostgreSQL:
+
+```bash
+vercel --prod
+```
+
+### Docker (Full Stack)
+
+```bash
+docker compose up -d --build
+```
+
+Services:
+- `db` — PostgreSQL 16 (port 5432)
+- `app` — Next.js (port 3000)
+- `gateway` — Python MQTT Gateway
+
+---
+
+## Scripts
+
+```bash
+npm run dev       # Chạy development server
+npm run build     # Build production
+npm run start     # Chạy production server
+npm run lint      # Kiểm tra linting
+```
