@@ -361,7 +361,8 @@ CREATE TABLE schedules (
     is_active          BOOLEAN NOT NULL DEFAULT TRUE,
     created_by         INT REFERENCES users(user_id),
     created_at         TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at         TIMESTAMP NOT NULL DEFAULT NOW()
+    updated_at         TIMESTAMP NOT NULL DEFAULT NOW(),
+    last_triggered_at  TIMESTAMP
 );
 CREATE TRIGGER set_schedules_updated_at BEFORE UPDATE ON schedules FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 

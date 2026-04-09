@@ -5,7 +5,7 @@ import { Topbar } from "@/components/layout/Topbar";
 import { Badge } from "@/components/shared/index";
 import { useAppStore } from "@/lib/store";
 import { cn, formatDateTime, timeAgo } from "@/lib/utils";
-import { apiCreateBackup, apiUpdateBackup } from "@/lib/api/client";
+import { apiCreateBackup, apiUpdateBackup, apiExecuteBackup, apiDownloadBackupUrl } from "@/lib/api/client";
 import type { BackupRecord } from "@/types";
 import { DatabaseBackup, Download, HardDrive, RefreshCw, RotateCcw, TriangleAlert } from "lucide-react";
 
@@ -56,6 +56,7 @@ export default function BackupPage() {
   const importRuntimeDataJson = useAppStore((state) => state.importRuntimeDataJson);
   const loggedInUser = useAppStore((state) => state.loggedInUser);
   const [isRunningBackup, setIsRunningBackup] = useState(false);
+  const [isRunningDbBackup, setIsRunningDbBackup] = useState(false);
   const [progress, setProgress] = useState(0);
   const [backupPayloads, setBackupPayloads] = useState<Record<string, string>>({});
 
@@ -119,6 +120,47 @@ export default function BackupPage() {
       setProgress(0);
       addToast({ type: "success", message: "Đã tạo bản sao lưu runtime mới" });
     }, 2500);
+  };
+
+  const handleDatabaseBackup = async () => {
+    if (isRunningDbBackup) return;
+    setIsRunningDbBackup(true);
+
+    const numericUserId = loggedInUser?.id ? parseInt(loggedInUser.id.replace(/^u/, ""), 10) : null;
+    const result = await apiExecuteBackup("manual", Number.isFinite(numericUserId) ? numericUserId : null);
+
+    if (!result) {
+      addToast({ type: "error", message: "Không thể kết nối máy chủ để sao lưu CSDL." });
+      setIsRunningDbBackup(false);
+      return;
+    }
+
+    if (result.ok) {
+      const newRecord: BackupRecord = {
+        id: result.backupId ?? `bk${Date.now()}`,
+        type: "manual",
+        status: "success",
+        createdAt: new Date().toISOString(),
+        fileSize: `${result.fileSizeMb ?? "?"} MB`,
+        fileName: result.fileName ?? "smart_farm_backup.sql",
+        createdBy: loggedInUser?.name ?? "System Admin",
+        note: "Sao lưu cơ sở dữ liệu PostgreSQL (pg_dump)",
+      };
+      addBackupRecord(newRecord);
+      addLog({
+        id: `log_${Date.now()}`,
+        actionType: "CONFIG_CHANGE",
+        description: `Sao lưu CSDL thành công: ${newRecord.fileName} (${newRecord.fileSize})`,
+        userId: loggedInUser?.id ?? "u1",
+        userName: loggedInUser?.name ?? "System Admin",
+        timestamp: new Date().toISOString(),
+      });
+      addToast({ type: "success", message: `Sao lưu CSDL thành công: ${result.fileName} (${result.fileSizeMb} MB)` });
+    } else {
+      addToast({ type: "error", message: result.error ?? "Sao lưu CSDL thất bại. Kiểm tra pg_dump có sẵn trên server." });
+    }
+
+    setIsRunningDbBackup(false);
   };
 
   const handleRetryBackup = (record: BackupRecord) => {
@@ -202,6 +244,19 @@ export default function BackupPage() {
   };
 
   const handleDownloadBackup = (record: BackupRecord) => {
+    // Server-side database backup (SQL files)
+    if (record.fileName.endsWith(".sql")) {
+      const a = document.createElement("a");
+      a.href = apiDownloadBackupUrl(record.id);
+      a.download = record.fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      addToast({ type: "info", message: `Đang tải xuống ${record.fileName}` });
+      return;
+    }
+
+    // Client-side runtime backup (JSON files)
     const payload = backupPayloads[record.id];
     if (!payload) {
       addToast({ type: "warning", message: `Backup ${record.id.toUpperCase()} không có payload local để tải xuống` });
@@ -295,6 +350,17 @@ export default function BackupPage() {
               <p className="text-[0.75rem] text-[#5C7A6A] mt-3">
                 Backup thủ công đang lưu payload runtime cục bộ trên trình duyệt để tải xuống và khôi phục ngay.
               </p>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-[#E2E8E4]">
+              <h3 className="font-semibold text-[0.875rem] text-[#1A2E1F] mb-2">Sao lưu cơ sở dữ liệu</h3>
+              <p className="text-[0.75rem] text-[#5C7A6A] mb-3">
+                Tạo bản sao lưu PostgreSQL (pg_dump) trên server. File .sql có thể tải xuống.
+              </p>
+              <button onClick={handleDatabaseBackup} disabled={isRunningDbBackup} className="btn-primary w-full justify-center disabled:opacity-60 disabled:cursor-not-allowed">
+                <HardDrive size={16} />
+                {isRunningDbBackup ? "Đang sao lưu CSDL..." : "Sao lưu CSDL (pg_dump)"}
+              </button>
             </div>
           </div>
 

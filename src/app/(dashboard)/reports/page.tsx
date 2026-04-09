@@ -11,6 +11,7 @@ import { getManagedFarmers, getVisibleFarmsForViewer } from "@/lib/dataScope";
 import type { GardenSensorSummary } from "@/types";
 
 import { cn } from "@/lib/utils";
+import { exportToPdf, exportToExcel, type ReportExportData } from "@/lib/exportUtils";
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
@@ -126,43 +127,28 @@ export default function ReportsPage() {
   const dateRangeLabel = dateRangeButtons.find((item) => item.key === dateRange)?.label ?? "7 ngày";
 
   const handleExport = (format: ExportFormat, includeCharts: boolean, includeRaw: boolean) => {
-    const stamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
-    const safeFarm = (selectedFarm?.name ?? "toan-he-thong").replace(/\s+/g, "-").toLowerCase();
+    const exportData: ReportExportData = {
+      farmName: selectedFarm?.name ?? "Toàn hệ thống",
+      dateRangeLabel,
+      generatedBy: loggedInUser?.name ?? "System Admin",
+      summaryStats: summaryStats.map((s) => ({ label: s.label, value: s.value, unit: s.unit })),
+      comparisonData,
+      alertTypesData: alertTypesData.map((a) => ({ name: a.name, value: a.value })),
+      gardenCount: farmGardens.length,
+      alertCount: farmAlerts.length,
+      scheduleCount: farmSchedules.length,
+    };
 
-    if (format === "excel") {
-      const csvRows = [
-        ["Garden", "Temp", "SoilHumidity", "LightKLux"],
-        ...comparisonData.map((row) => [row.garden, String(row.temp), String(row.humidity), String(row.light)]),
-      ];
-      if (includeRaw) {
-        csvRows.push([]);
-        csvRows.push(["Range", dateRangeLabel]);
-        csvRows.push(["Gardens", String(farmGardens.length)]);
-        csvRows.push(["Alerts", String(farmAlerts.length)]);
+    try {
+      if (format === "excel") {
+        exportToExcel(exportData);
+        addToast({ type: "success", message: "Đã xuất báo cáo Excel (.xlsx)" });
+      } else {
+        exportToPdf(exportData);
+        addToast({ type: "success", message: "Đã xuất báo cáo PDF" });
       }
-      const csv = csvRows.map((row) => row.join(",")).join("\n");
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `report_${safeFarm}_${stamp}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-      addToast({ type: "success", message: "Đã xuất báo cáo CSV" });
-    } else {
-      const win = window.open("", "_blank", "width=960,height=720");
-      if (win) {
-        const lines = comparisonData
-          .map((row) => `<tr><td>${row.garden}</td><td>${row.temp}</td><td>${row.humidity}</td><td>${row.light}</td></tr>`)
-          .join("");
-        win.document.write(`<!doctype html><html><head><title>Report ${safeFarm}</title><style>body{font-family:Arial,sans-serif;padding:24px} table{width:100%;border-collapse:collapse} th,td{border:1px solid #ddd;padding:8px;text-align:left} h1{margin:0 0 8px} p{color:#555}</style></head><body><h1>Report: ${selectedFarm?.name ?? "Toàn hệ thống"}</h1><p>Range: ${dateRangeLabel} | Gardens: ${farmGardens.length} | Alerts: ${farmAlerts.length}</p><table><thead><tr><th>Garden</th><th>Temp</th><th>SoilHumidity</th><th>LightKLux</th></tr></thead><tbody>${lines}</tbody></table></body></html>`);
-        win.document.close();
-        win.focus();
-        win.print();
-      }
-      addToast({ type: "success", message: "Đã mở bản in PDF" });
+    } catch {
+      addToast({ type: "error", message: "Lỗi khi xuất báo cáo. Vui lòng thử lại." });
     }
 
     addLog({

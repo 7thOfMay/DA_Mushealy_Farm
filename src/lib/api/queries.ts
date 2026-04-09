@@ -613,12 +613,13 @@ export async function insertUser(
   fullName: string | null,
   phone: string | null,
   roleId: number,
+  isActive: boolean = true,
 ): Promise<number> {
   const result = await queryOne<{ user_id: number }>(`
     INSERT INTO users (username, email, password_hash, full_name, phone, role_id, is_active)
-    VALUES ($1, $2, $3, $4, $5, $6, TRUE)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
     RETURNING user_id
-  `, [username, email, passwordHash, fullName, phone, roleId]);
+  `, [username, email, passwordHash, fullName, phone, roleId, isActive]);
   return result!.user_id;
 }
 

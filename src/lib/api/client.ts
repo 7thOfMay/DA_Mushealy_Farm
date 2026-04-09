@@ -280,6 +280,24 @@ export async function apiUpdateBackup(
   return r?.ok ?? false;
 }
 
+export async function apiExecuteBackup(
+  backupType: "manual" | "auto" = "manual",
+  createdBy?: number | null,
+): Promise<{ ok: boolean; backupId?: string; fileName?: string; fileSizeMb?: string; error?: string } | null> {
+  return fetchJson<{ ok: boolean; backupId?: string; fileName?: string; fileSizeMb?: string; error?: string }>(
+    `${BASE}/backups/execute`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ backupType, createdBy }),
+    },
+  );
+}
+
+export function apiDownloadBackupUrl(backupId: string): string {
+  return `${BASE}/backups/download?backupId=${encodeURIComponent(backupId)}`;
+}
+
 export async function apiGetAIAnalyses(): Promise<AIAnalysis[] | null> {
   return fetchJson<AIAnalysis[]>(`${BASE}/ai`);
 }
@@ -325,6 +343,19 @@ export async function apiLogin(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
+  });
+}
+
+export async function apiRegister(
+  fullName: string,
+  email: string,
+  password: string,
+  phone?: string,
+): Promise<{ ok: boolean; userId?: string; reason?: string } | null> {
+  return fetchJson<{ ok: boolean; userId?: string; reason?: string }>(`${BASE}/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fullName, email, password, phone }),
   });
 }
 

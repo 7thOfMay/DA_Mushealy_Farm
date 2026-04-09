@@ -45,3 +45,17 @@ DEVICE_TO_FEED = {
 # --- CẤU HÌNH GATEWAY ---
 COMMAND_POLL_INTERVAL = 3   # Giây - tần suất poll lệnh từ DB
 OFFLINE_QUEUE_FILE = "offline_queue.json"
+
+# --- CẤU HÌNH CẢNH BÁO TỰ ĐỘNG ---
+ALERT_COOLDOWN_SECONDS = 900  # 15 phút - khoảng cách tối thiểu giữa 2 alert cùng zone+metric
+
+# device_type_id → metric_type trong zone_thresholds
+DEVICE_TYPE_TO_METRIC = {
+    1: "temperature",
+    2: "air_humidity",
+    3: "soil_moisture",
+    4: "light",
+}
+
+# --- CẤU HÌNH LỊCH TRÌNH TỰ ĐỘNG ---
+SCHEDULE_EVAL_INTERVAL = 30  # Giây - tần suất đánh giá lịch trình

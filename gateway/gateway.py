@@ -2,7 +2,7 @@ import sys
 import time
 import json
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 
 def utcnow():
@@ -258,6 +258,139 @@ def sync_offline_queue():
 
 
 # ============================================================
+# THRESHOLD ALERT GENERATION - Tự động tạo cảnh báo vượt ngưỡng
+# ============================================================
+
+def check_thresholds(device_id, value):
+    """Kiểm tra giá trị cảm biến vượt ngưỡng, tự động tạo alert."""
+    conn = get_db()
+    if conn is None:
+        return
+    try:
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        # 1. Lấy zone_id và device_type_id
+        cursor.execute(
+            "SELECT d.zone_id, d.device_type_id, dt.type_name, fz.zone_name "
+            "FROM devices d "
+            "JOIN device_types dt ON d.device_type_id = dt.device_type_id "
+            "JOIN farm_zones fz ON d.zone_id = fz.zone_id "
+            "WHERE d.device_id = %s",
+            (device_id,),
+        )
+        device_info = cursor.fetchone()
+        if not device_info:
+            cursor.close()
+            return
+
+        zone_id = device_info["zone_id"]
+        device_type_id = device_info["device_type_id"]
+        zone_name = device_info["zone_name"]
+
+        # 2. Map device_type → metric_type
+        metric_type = config.DEVICE_TYPE_TO_METRIC.get(device_type_id)
+        if not metric_type:
+            cursor.close()
+            return
+
+        # 3. Lấy ngưỡng
+        cursor.execute(
+            "SELECT min_value, max_value FROM zone_thresholds "
+            "WHERE zone_id = %s AND metric_type = %s",
+            (zone_id, metric_type),
+        )
+        threshold = cursor.fetchone()
+        if not threshold:
+            cursor.close()
+            return
+
+        min_val = float(threshold["min_value"])
+        max_val = float(threshold["max_value"])
+
+        # 4. Kiểm tra vượt ngưỡng
+        if min_val <= value <= max_val:
+            cursor.close()
+            return  # Trong ngưỡng bình thường
+
+        # 5. Check cooldown - tránh tạo alert liên tục
+        cursor.execute(
+            "SELECT alert_id FROM alerts "
+            "WHERE zone_id = %s AND metric_type = %s "
+            "AND status IN ('detected', 'processing') "
+            "AND detected_at > NOW() - INTERVAL '%s seconds'",
+            (zone_id, metric_type, config.ALERT_COOLDOWN_SECONDS),
+        )
+        if cursor.fetchone():
+            cursor.close()
+            return  # Đã có alert gần đây, bỏ qua
+
+        # 6. Xác định severity
+        exceeded_by = 0
+        threshold_range = max_val - min_val if max_val > min_val else 1
+        if value > max_val:
+            exceeded_by = (value - max_val) / threshold_range
+            threshold_value = max_val
+            direction = "cao"
+        else:
+            exceeded_by = (min_val - value) / threshold_range
+            threshold_value = min_val
+            direction = "thấp"
+
+        severity = "critical" if exceeded_by > 0.2 else "warning"
+
+        # 7. Tạo thông báo
+        metric_labels = {
+            "temperature": "Nhiệt độ",
+            "air_humidity": "Độ ẩm không khí",
+            "soil_moisture": "Độ ẩm đất",
+            "light": "Ánh sáng",
+        }
+        metric_units = {
+            "temperature": "°C",
+            "air_humidity": "%",
+            "soil_moisture": "%",
+            "light": "lux",
+        }
+        label = metric_labels.get(metric_type, metric_type)
+        unit = metric_units.get(metric_type, "")
+        message = (
+            f"{label} quá {direction} tại {zone_name}: "
+            f"{value}{unit} (ngưỡng: {min_val}-{max_val}{unit})"
+        )
+
+        # 8. Insert alert
+        now = utcnow()
+        cursor.execute(
+            "INSERT INTO alerts "
+            "(zone_id, device_id, alert_type, source_type, severity, "
+            " metric_type, threshold_value, actual_value, message, status, detected_at) "
+            "VALUES (%s, %s, 'threshold_exceeded', 'threshold_rule', %s, "
+            " %s, %s, %s, %s, 'detected', %s)",
+            (zone_id, device_id, severity, metric_type,
+             threshold_value, value, message, now),
+        )
+
+        # 9. Log vào system_logs
+        cursor.execute(
+            "INSERT INTO system_logs "
+            "(user_id, action_type, entity_type, entity_id, description, created_at) "
+            "VALUES (NULL, 'alert', 'alert', currval('alerts_alert_id_seq'), %s, %s)",
+            (message, now),
+        )
+
+        conn.commit()
+        cursor.close()
+        print(f"  🚨 ALERT [{severity.upper()}]: {message}")
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"  ⚠️ Threshold check error: {e}")
+    finally:
+        _putconn(conn)
+
+
+# ============================================================
 # COMMAND POLLING - Lấy lệnh điều khiển từ DB gửi lên OhStem
 # ============================================================
 
@@ -342,6 +475,150 @@ def poll_device_commands(mqtt_client):
 
 
 # ============================================================
+# SCHEDULE EVALUATION - Thực thi lịch trình tự động
+# ============================================================
+
+def evaluate_schedules(mqtt_client):
+    """Đánh giá và thực thi lịch trình tưới tiêu tự động."""
+    while True:
+        conn = None
+        try:
+            conn = get_db()
+            if conn is None:
+                time.sleep(config.SCHEDULE_EVAL_INTERVAL)
+                continue
+
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            now = utcnow()
+            current_time = now.time()
+            current_weekday = now.weekday()  # 0=Monday
+
+            # Lấy tất cả lịch trình active
+            cursor.execute(
+                "SELECT s.*, d.device_code "
+                "FROM schedules s "
+                "JOIN devices d ON s.device_id = d.device_id "
+                "WHERE s.is_active = TRUE"
+            )
+            schedules = cursor.fetchall()
+
+            for sched in schedules:
+                schedule_id = sched["schedule_id"]
+                device_id = sched["device_id"]
+                execution_mode = sched["execution_mode"]
+                last_triggered = sched.get("last_triggered_at")
+
+                # Cooldown: không trigger lại trong vòng duration + 60s
+                duration = sched.get("duration_seconds") or 300
+                cooldown = duration + 60
+                if last_triggered:
+                    elapsed = (now - last_triggered).total_seconds()
+                    if elapsed < cooldown:
+                        continue
+
+                should_trigger = False
+
+                # --- TIME-BASED (automatic) ---
+                if execution_mode == "automatic" and sched.get("start_time"):
+                    start = sched["start_time"]
+                    schedule_type = sched.get("schedule_type", "daily")
+
+                    # Kiểm tra thời gian: trong phạm vi SCHEDULE_EVAL_INTERVAL giây
+                    time_diff_seconds = abs(
+                        (current_time.hour * 3600 + current_time.minute * 60 + current_time.second)
+                        - (start.hour * 3600 + start.minute * 60 + start.second)
+                    )
+
+                    if time_diff_seconds <= config.SCHEDULE_EVAL_INTERVAL:
+                        if schedule_type == "daily":
+                            should_trigger = True
+                        elif schedule_type == "weekly":
+                            dow = sched.get("day_of_week")
+                            if dow is not None and dow == current_weekday:
+                                should_trigger = True
+                        elif schedule_type == "hourly":
+                            # Hourly: trigger mỗi giờ tại phút start_time.minute
+                            if abs(current_time.minute - start.minute) <= 1:
+                                should_trigger = True
+
+                # --- THRESHOLD-BASED ---
+                elif execution_mode == "threshold_based":
+                    zone_id = sched["zone_id"]
+
+                    # Lấy ngưỡng tưới từ watering_modes
+                    cursor.execute(
+                        "SELECT trigger_threshold_soil_moisture FROM watering_modes "
+                        "WHERE zone_id = %s AND mode = 'auto_sensor'",
+                        (zone_id,),
+                    )
+                    wm = cursor.fetchone()
+                    if not wm or not wm["trigger_threshold_soil_moisture"]:
+                        continue
+
+                    threshold_moisture = float(wm["trigger_threshold_soil_moisture"])
+
+                    # Lấy giá trị soil moisture mới nhất của zone
+                    cursor.execute(
+                        "SELECT sd.value FROM sensor_data sd "
+                        "JOIN devices d ON sd.device_id = d.device_id "
+                        "JOIN device_types dt ON d.device_type_id = dt.device_type_id "
+                        "WHERE d.zone_id = %s AND dt.device_type_id = 3 "
+                        "ORDER BY sd.recorded_at DESC LIMIT 1",
+                        (zone_id,),
+                    )
+                    soil_data = cursor.fetchone()
+                    if soil_data and float(soil_data["value"]) < threshold_moisture:
+                        should_trigger = True
+
+                if not should_trigger:
+                    continue
+
+                # --- TRIGGER: tạo device command ---
+                print(f"  📅 SCHEDULE [{schedule_id}]: Kích hoạt thiết bị device_id={device_id} ({duration}s)")
+
+                # Insert lệnh bật
+                cursor.execute(
+                    "INSERT INTO device_commands (device_id, command_type, parameters, status, issued_at) "
+                    "VALUES (%s, 'turn_on', %s, 'pending', %s)",
+                    (device_id, json.dumps({"source": "schedule", "schedule_id": schedule_id}), now),
+                )
+
+                # Insert lệnh tắt (sau duration giây)
+                off_time = now + timedelta(seconds=duration)
+                cursor.execute(
+                    "INSERT INTO device_commands (device_id, command_type, parameters, status, issued_at) "
+                    "VALUES (%s, 'turn_off', %s, 'pending', %s)",
+                    (device_id, json.dumps({"source": "schedule", "schedule_id": schedule_id, "auto_off": True}), off_time),
+                )
+
+                # Cập nhật last_triggered_at
+                cursor.execute(
+                    "UPDATE schedules SET last_triggered_at = %s WHERE schedule_id = %s",
+                    (now, schedule_id),
+                )
+
+                # Log
+                cursor.execute(
+                    "INSERT INTO system_logs "
+                    "(user_id, action_type, entity_type, entity_id, description, created_at) "
+                    "VALUES (NULL, 'device_control', 'schedule', %s, %s, %s)",
+                    (schedule_id, f"Lịch trình #{schedule_id} kích hoạt tưới tự động ({duration}s)", now),
+                )
+
+            conn.commit()
+            cursor.close()
+
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            print(f"[SCHEDULE] Error: {e}")
+        finally:
+            _putconn(conn)
+
+        time.sleep(config.SCHEDULE_EVAL_INTERVAL)
+
+
+# ============================================================
 # PAHO MQTT CALLBACKS (OhStem)
 # ============================================================
 
@@ -386,6 +663,8 @@ def on_message(client, userdata, msg):
         try:
             value = float(payload)
             save_sensor_data(device_id, value)
+            # Kiểm tra ngưỡng và tạo cảnh báo tự động
+            check_thresholds(device_id, value)
         except ValueError:
             print(f"  ⚠️ Bỏ qua: payload '{payload}' không phải số")
         return
@@ -441,6 +720,11 @@ def main():
     cmd_thread = threading.Thread(target=poll_device_commands, args=(client,), daemon=True)
     cmd_thread.start()
     print("⚙️ Command polling thread đã khởi động")
+
+    # Chạy thread đánh giá lịch trình tự động
+    sched_thread = threading.Thread(target=evaluate_schedules, args=(client,), daemon=True)
+    sched_thread.start()
+    print("📅 Schedule evaluation thread đã khởi động")
 
     print(f"Đang tiến hành kết nối tới {config.MQTT_BROKER}...")
 

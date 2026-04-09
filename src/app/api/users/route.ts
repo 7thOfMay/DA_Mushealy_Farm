@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { isDbConfigured } from "@/lib/db";
 import { fetchUsers, insertUser, updateUser, deleteUser } from "@/lib/api/queries";
+import { isAdminRequest } from "@/lib/auth.server";
 import { createHash } from "crypto";
 
 export async function GET() {
@@ -21,6 +22,9 @@ export async function GET() {
 export async function POST(request: Request) {
   if (!isDbConfigured()) {
     return NextResponse.json({ error: "Database not configured" }, { status: 503 });
+  }
+  if (!isAdminRequest()) {
+    return NextResponse.json({ error: "Chỉ Admin mới có quyền tạo tài khoản" }, { status: 403 });
   }
   try {
     const body = await request.json() as {
@@ -45,6 +49,9 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   if (!isDbConfigured()) {
     return NextResponse.json({ error: "Database not configured" }, { status: 503 });
+  }
+  if (!isAdminRequest()) {
+    return NextResponse.json({ error: "Chỉ Admin mới có quyền chỉnh sửa tài khoản" }, { status: 403 });
   }
   try {
     const body = await request.json() as {
@@ -72,6 +79,9 @@ export async function PUT(request: Request) {
 export async function DELETE(request: Request) {
   if (!isDbConfigured()) {
     return NextResponse.json({ error: "Database not configured" }, { status: 503 });
+  }
+  if (!isAdminRequest()) {
+    return NextResponse.json({ error: "Chỉ Admin mới có quyền xóa tài khoản" }, { status: 403 });
   }
   try {
     const { searchParams } = new URL(request.url);

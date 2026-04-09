@@ -8,9 +8,9 @@ import { cn } from "@/lib/utils";
 import { useAppStore } from "@/lib/store";
 import { FormErrorBanner, InlineFieldError } from "@/components/shared";
 import { ValidationFeedback } from "@/components/shared/ValidationFeedback";
-import { isValidEmail } from "@/lib/validation";
+import { isValidEmail, isValidPassword } from "@/lib/validation";
 import { getDashboardLandingPath } from "@/lib/localSettings";
-import { apiLogin } from "@/lib/api/client";
+import { apiLogin, apiRegister } from "@/lib/api/client";
 
 // ── Login Modal ──────────────────────────────────────────────────────────────
 function LoginModal({ onClose }: { onClose: () => void }) {
@@ -162,15 +162,21 @@ function LoginModal({ onClose }: { onClose: () => void }) {
 
 // ── Register Modal ───────────────────────────────────────────────────────────
 function RegisterModal({ onClose }: { onClose: () => void }) {
+  const router = useRouter();
   const overlayRef = useRef<HTMLDivElement>(null);
   const addToast = useAppStore((state) => state.addToast);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"FARMER" | "ADMIN">("FARMER");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [phone, setPhone] = useState("");
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    setError(null);
     const normalizedEmail = email.trim().toLowerCase();
+
     if (!fullName.trim()) {
       setError("Vui lòng nhập họ và tên.");
       return;
@@ -179,12 +185,42 @@ function RegisterModal({ onClose }: { onClose: () => void }) {
       setError("Email không đúng định dạng.");
       return;
     }
+    if (!isValidPassword(password)) {
+      setError("Mật khẩu phải có ít nhất 6 ký tự.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Mật khẩu xác nhận không khớp.");
+      return;
+    }
 
-    addToast({
-      type: "success",
-      message: `Đã ghi nhận yêu cầu đăng ký cho ${fullName.trim()} (${role}). Quản trị viên sẽ liên hệ qua ${normalizedEmail}.`,
-    });
-    onClose();
+    setLoading(true);
+    const result = await apiRegister(fullName.trim(), normalizedEmail, password, phone.trim() || undefined);
+
+    if (!result) {
+      setError("Không thể kết nối máy chủ. Vui lòng thử lại sau.");
+      setLoading(false);
+      return;
+    }
+
+    if (result.ok) {
+      addToast({
+        type: "success",
+        message: `Đăng ký thành công! Tài khoản đang chờ quản trị viên phê duyệt.`,
+      });
+      onClose();
+      router.push(`/pending?email=${encodeURIComponent(normalizedEmail)}`);
+      return;
+    }
+
+    if (result.reason === "email_exists") {
+      setError("Email này đã được sử dụng. Vui lòng dùng email khác.");
+    } else if (result.reason === "password_too_short") {
+      setError("Mật khẩu phải có ít nhất 6 ký tự.");
+    } else {
+      setError("Đã xảy ra lỗi. Vui lòng thử lại.");
+    }
+    setLoading(false);
   };
 
   return (
@@ -196,7 +232,7 @@ function RegisterModal({ onClose }: { onClose: () => void }) {
         <div className="flex items-center justify-between px-6 pt-6 pb-4">
           <div className="flex items-center gap-2.5">
             <Image src="/logo.png" alt="Mushealy" width={36} height={36} className="rounded-[8px] object-contain"/>
-            <p className="text-[0.8125rem] font-bold text-[#1A2E1F]">Yêu cầu mở tài khoản</p>
+            <p className="text-[0.8125rem] font-bold text-[#1A2E1F]">Đăng ký tài khoản</p>
           </div>
           <button onClick={onClose}
             className="w-8 h-8 rounded-full flex items-center justify-center text-[#5C7A6A] hover:bg-[#F0F4F0] transition-colors">
@@ -204,26 +240,33 @@ function RegisterModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
         <div className="px-6 pb-6 space-y-3">
-          <p className="text-[0.8125rem] text-[#5C7A6A]">Điền thông tin để gửi yêu cầu tạo tài khoản cho quản trị viên.</p>
+          <p className="text-[0.8125rem] text-[#5C7A6A]">Tạo tài khoản mới. Sau khi đăng ký, quản trị viên sẽ xét duyệt.</p>
           <div>
             <label className="block text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A] mb-1.5">Họ và tên</label>
-            <input className="input-field" value={fullName} onChange={(e) => { setFullName(e.target.value); setError(null); }} />
+            <input className="input-field" value={fullName} onChange={(e) => { setFullName(e.target.value); setError(null); }} placeholder="Nguyễn Văn A" />
           </div>
           <div>
-            <label className="block text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A] mb-1.5">Email liên hệ</label>
-            <input className="input-field" value={email} onChange={(e) => { setEmail(e.target.value); setError(null); }} />
+            <label className="block text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A] mb-1.5">Email</label>
+            <input className="input-field" type="email" value={email} onChange={(e) => { setEmail(e.target.value); setError(null); }} placeholder="email@example.com" />
           </div>
           <div>
-            <label className="block text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A] mb-1.5">Vai trò mong muốn</label>
-            <select className="input-field" value={role} onChange={(e) => setRole(e.target.value as "FARMER" | "ADMIN") }>
-              <option value="FARMER">Farmer — Nông dân</option>
-              <option value="ADMIN">Admin — Kỹ sư</option>
-            </select>
+            <label className="block text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A] mb-1.5">Số điện thoại (tùy chọn)</label>
+            <input className="input-field" value={phone} onChange={(e) => { setPhone(e.target.value); setError(null); }} placeholder="0901234567" />
+          </div>
+          <div>
+            <label className="block text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A] mb-1.5">Mật khẩu</label>
+            <input className="input-field" type="password" value={password} onChange={(e) => { setPassword(e.target.value); setError(null); }} placeholder="Tối thiểu 6 ký tự" />
+          </div>
+          <div>
+            <label className="block text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A] mb-1.5">Xác nhận mật khẩu</label>
+            <input className="input-field" type="password" value={confirmPassword} onChange={(e) => { setConfirmPassword(e.target.value); setError(null); }} placeholder="Nhập lại mật khẩu" />
           </div>
           <FormErrorBanner message={error} />
           <div className="flex items-center justify-end gap-2 pt-1">
             <button onClick={onClose} className="btn-secondary">Hủy</button>
-            <button onClick={handleSubmit} className="btn-primary" disabled={!fullName.trim() || !email.trim()}>Gửi yêu cầu</button>
+            <button onClick={handleSubmit} className="btn-primary" disabled={loading || !fullName.trim() || !email.trim() || !password}>
+              {loading ? "Đang xử lý…" : "Đăng ký"}
+            </button>
           </div>
         </div>
       </div>
