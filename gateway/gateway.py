@@ -125,17 +125,22 @@ def get_db():
 
 
 def save_sensor_data(device_id, value):
-    """INSERT dữ liệu cảm biến vào bảng sensor_data."""
+    """INSERT dữ liệu cảm biến + cập nhật status trong 1 connection."""
     conn = get_db()
     if conn is None:
         save_to_offline_queue(device_id, value)
         return False
     try:
         cursor = conn.cursor()
+        now = utcnow()
         cursor.execute(
             "INSERT INTO sensor_data (device_id, value, recorded_at, synced) "
             "VALUES (%s, %s, %s, TRUE)",
-            (device_id, value, utcnow()),
+            (device_id, value, now),
+        )
+        cursor.execute(
+            "UPDATE devices SET status = 'online', last_updated = %s WHERE device_id = %s",
+            (now, device_id),
         )
         conn.commit()
         cursor.close()
@@ -383,7 +388,6 @@ def on_message(client, userdata, msg):
         try:
             value = float(payload)
             save_sensor_data(device_id, value)
-            update_device_status(device_id, "online")
         except ValueError:
             print(f"  ⚠️ Bỏ qua: payload '{payload}' không phải số")
         return

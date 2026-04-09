@@ -12,7 +12,7 @@ function getPoolConfig(): PoolOptions {
     database: process.env.DB_NAME ?? "smart_farm",
     charset: "utf8mb4",
     waitForConnections: true,
-    connectionLimit: isProduction ? 1 : 10,
+    connectionLimit: isProduction ? 3 : 10,
     queueLimit: 0,
     ...(isProduction
       ? { connectTimeout: 5_000, ssl: { rejectUnauthorized: false } }

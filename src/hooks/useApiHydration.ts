@@ -24,7 +24,8 @@ import {
   apiHealthCheck,
 } from "@/lib/api/client";
 
-const POLL_INTERVAL = 3_000; // 3 seconds
+const POLL_INTERVAL = 3_000; // 3 seconds for live data
+const CHART_POLL_INTERVAL = 30_000; // 30 seconds for chart data
 const TOGGLE_LOCK_MS = 12_000; // keep optimistic state for 12s after toggle
 
 /** Device IDs recently toggled — poll will not overwrite their status/isOn */
@@ -40,6 +41,7 @@ export function useApiHydration() {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const chartPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const refreshLiveData = useCallback(async () => {
     const [devices, sensorSummaries, alerts] = await Promise.all([
@@ -85,15 +87,13 @@ export function useApiHydration() {
     if (farmGardenIds.length > 0) {
       const chartData = await apiGetSensorChartData(farmGardenIds);
       if (chartData) {
-        patch.temperatureChartData = chartData.temperatureChartData;
-        patch.humidityAirChartData = chartData.humidityAirChartData;
-        patch.humiditySoilChartData = chartData.humiditySoilChartData;
-        patch.lightChartData = chartData.lightChartData;
+        useAppStore.setState({
+          temperatureChartData: chartData.temperatureChartData,
+          humidityAirChartData: chartData.humidityAirChartData,
+          humiditySoilChartData: chartData.humiditySoilChartData,
+          lightChartData: chartData.lightChartData,
+        });
       }
-    }
-
-    if (Object.keys(patch).length > 0) {
-      useAppStore.setState(patch);
     }
   }, []);
 
@@ -182,14 +182,16 @@ export function useApiHydration() {
 
       setStatus("ready");
 
-      // Start polling for live data
+      // Start polling for live data (fast) and chart data (slow)
       pollRef.current = setInterval(refreshLiveData, POLL_INTERVAL);
+      chartPollRef.current = setInterval(refreshChartData, CHART_POLL_INTERVAL);
     })();
 
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      if (chartPollRef.current) clearInterval(chartPollRef.current);
     };
-  }, [refreshLiveData]);
+  }, [refreshLiveData, refreshChartData]);
 
   return status;
 }

@@ -181,18 +181,18 @@ export async function fetchDevicesByZoneId(zoneId: number) {
 // ─── Sensor Data ────────────────────────────────────────────────────
 
 export async function fetchSensorSummaries() {
-  // Get latest sensor reading per device type per zone
+  // Get latest sensor reading per device using the covering index (device_id, recorded_at)
   const rows = await query<SensorLatestRow[]>(`
     SELECT sd.device_id, d.zone_id, d.device_type_id, sd.value, sd.recorded_at
-    FROM sensor_data sd
-    JOIN (
-      SELECT device_id, MAX(recorded_at) AS max_time
-      FROM sensor_data
-      GROUP BY device_id
-    ) latest ON sd.device_id = latest.device_id AND sd.recorded_at = latest.max_time
-    JOIN devices d ON sd.device_id = d.device_id
+    FROM devices d
     JOIN device_types dt ON d.device_type_id = dt.device_type_id
+    JOIN sensor_data sd ON sd.device_id = d.device_id
     WHERE dt.category = 'sensor'
+      AND sd.sensor_data_id = (
+        SELECT sd2.sensor_data_id FROM sensor_data sd2
+        WHERE sd2.device_id = d.device_id
+        ORDER BY sd2.recorded_at DESC LIMIT 1
+      )
     ORDER BY d.zone_id
   `);
 
