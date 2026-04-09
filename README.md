@@ -173,6 +173,16 @@ Lệnh trên sẽ khởi chạy 3 service: PostgreSQL, Next.js app, và MQTT Gat
 
 ---
 
+## Tài khoản demo
+
+| Username | Email | Mật khẩu | Vai trò |
+|---|---|---|---|
+| admin01 | admin@smartfarm.local | 123456 | Quản trị hệ thống |
+| farmer01 | farmer1@smartfarm.local | 123456 | Nông hộ 1 |
+| user01 | user1@smartfarm.local | 123456 | Người dùng 1 |
+
+---
+
 ## IoT — MQTT Feeds
 
 | Feed | Hướng | Thiết bị | Mô tả |
