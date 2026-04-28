@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useParams } from "next/navigation";
-import { useAppStore } from "@/lib/store";
+import { useAppStore } from "@/frontend/context/store";
 import LogsPage from "@/app/(dashboard)/logs/page";
 
 export default function FarmLogsRedirectPage() {

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useParams } from "next/navigation";
-import { useAppStore } from "@/lib/store";
+import { useAppStore } from "@/frontend/context/store";
 import AlertsPage from "@/app/(dashboard)/alerts/page";
 
 export default function FarmAlertsRedirectPage() {

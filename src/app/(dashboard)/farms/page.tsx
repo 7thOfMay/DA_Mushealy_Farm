@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Topbar } from "@/components/layout/Topbar";
-import { useAppStore } from "@/lib/store";
-import { Badge, EmptyState } from "@/components/shared/index";
-import { getVisibleFarmsForViewer } from "@/lib/dataScope";
-import { cn, timeAgo } from "@/lib/utils";
+import { Topbar } from "@/frontend/components/layout/Topbar";
+import { useAppStore } from "@/frontend/context/store";
+import { Badge, EmptyState } from "@/frontend/components/shared/index";
+import { getVisibleFarmsForViewer } from "@/frontend/utils/dataScope";
+import { cn, timeAgo } from "@/frontend/utils/utils";
 import { MapPin, MoreHorizontal, Sprout } from "lucide-react";
 
 type FarmFilter = "all" | "active" | "paused";

@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Topbar } from "@/components/layout/Topbar";
-import { useAppStore } from "@/lib/store";
+import { Topbar } from "@/frontend/components/layout/Topbar";
+import { useAppStore } from "@/frontend/context/store";
 import { Eye, EyeOff, CheckCircle2, ChevronDown } from "lucide-react";
-import { FormErrorBanner, InlineFieldError } from "@/components/shared";
-import { isValidPhone } from "@/lib/validation";
+import { FormErrorBanner, InlineFieldError } from "@/frontend/components/shared";
+import { isValidPhone } from "@/frontend/utils/validation";
 
 function getInitialsColor(name: string) {
   const palette = ["#1B4332", "#2D6A4F", "#40916C", "#1565C0", "#6A1565", "#C0531B"];

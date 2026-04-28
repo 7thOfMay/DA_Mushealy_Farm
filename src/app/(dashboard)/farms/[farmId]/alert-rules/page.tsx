@@ -1,13 +1,13 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { Topbar } from "@/components/layout/Topbar";
-import { Badge, EmptyState } from "@/components/shared/index";
-import { useAppStore } from "@/lib/store";
-import { cropKnowledgeCatalog } from "@/lib/cropKnowledge";
-import { cn } from "@/lib/utils";
-import { apiCreateAlertRule, apiUpdateAlertRule, apiDeleteAlertRule } from "@/lib/api/client";
+import { Topbar } from "@/frontend/components/layout/Topbar";
+import { Badge, EmptyState } from "@/frontend/components/shared/index";
+import { useAppStore } from "@/frontend/context/store";
+import { cropKnowledgeCatalog } from "@/frontend/utils/cropKnowledge";
+import { cn } from "@/frontend/utils/utils";
+import { apiCreateAlertRule, apiUpdateAlertRule, apiDeleteAlertRule } from "@/frontend/services/client";
 import type { AlertRule, SensorType } from "@/types";
 import { CircleAlert, Pencil, Plus, ShieldAlert, SlidersHorizontal, Trash2, X } from "lucide-react";
 

@@ -2,16 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { Thermometer, Droplets, Sun, Clock } from "lucide-react";
-import { Topbar } from "@/components/layout/Topbar";
-import { ExportConfig, type ExportFormat } from "@/components/reports/ExportConfig";
-import { ReportPreview } from "@/components/reports/ReportPreview";
-import { ErrorState } from "@/components/shared/ErrorStates";
-import { useAppStore } from "@/lib/store";
-import { getManagedFarmers, getVisibleFarmsForViewer } from "@/lib/dataScope";
+import { Topbar } from "@/frontend/components/layout/Topbar";
+import { ExportConfig, type ExportFormat } from "@/frontend/components/reports/ExportConfig";
+import { ReportPreview } from "@/frontend/components/reports/ReportPreview";
+import { ErrorState } from "@/frontend/components/shared/ErrorStates";
+import { useAppStore } from "@/frontend/context/store";
+import { getManagedFarmers, getVisibleFarmsForViewer } from "@/frontend/utils/dataScope";
 import type { GardenSensorSummary } from "@/types";
 
-import { cn } from "@/lib/utils";
-import { exportToPdf, exportToExcel, type ReportExportData } from "@/lib/exportUtils";
+import { cn } from "@/frontend/utils/utils";
+import { exportToPdf, exportToExcel, type ReportExportData } from "@/frontend/utils/exportUtils";
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer

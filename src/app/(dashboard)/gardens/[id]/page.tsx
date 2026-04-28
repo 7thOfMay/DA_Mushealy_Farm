@@ -3,8 +3,8 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Topbar } from "@/components/layout/Topbar";
-import { useAppStore } from "@/lib/store";
+import { Topbar } from "@/frontend/components/layout/Topbar";
+import { useAppStore } from "@/frontend/context/store";
 
 export default function LegacyGardenRoutePage() {
   const { id } = useParams<{ id: string }>();

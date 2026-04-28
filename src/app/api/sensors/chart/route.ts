@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { isDbConfigured } from "@/lib/db";
-import { fetchSensorChartData } from "@/lib/api/queries";
+import { isDbConfigured } from "@/backend/config/db";
+import { fetchSensorChartData } from "@/backend/services/queries";
 import type { ChartDataPoint } from "@/types";
 
 export const dynamic = "force-dynamic";

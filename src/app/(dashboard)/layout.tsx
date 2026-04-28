@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sidebar } from "@/components/layout/Sidebar";
-import { ToastContainer } from "@/components/shared/ToastContainer";
-import { FloatingChat } from "@/components/shared/FloatingChat";
-import { useAuth } from "@/hooks/useAuth";
-import { useApiHydration } from "@/hooks/useApiHydration";
+import { Sidebar } from "@/frontend/components/layout/Sidebar";
+import { ToastContainer } from "@/frontend/components/shared/ToastContainer";
+import { FloatingChat } from "@/frontend/components/shared/FloatingChat";
+import { useAuth } from "@/frontend/hooks/useAuth";
+import { useApiHydration } from "@/frontend/hooks/useApiHydration";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();

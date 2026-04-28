@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Topbar } from "@/components/layout/Topbar";
-import { CatalogManager } from "@/components/management/CatalogManager";
-import { DeleteGuard } from "@/components/management/DeleteGuard";
-import { ErrorState } from "@/components/shared/ErrorStates";
-import { useAppStore } from "@/lib/store";
-import { SETTINGS_KEY, defaultLocalSettings, type DashboardLanding, type LocalSettings } from "@/lib/localSettings";
+import { Topbar } from "@/frontend/components/layout/Topbar";
+import { CatalogManager } from "@/frontend/components/management/CatalogManager";
+import { DeleteGuard } from "@/frontend/components/management/DeleteGuard";
+import { ErrorState } from "@/frontend/components/shared/ErrorStates";
+import { useAppStore } from "@/frontend/context/store";
+import { SETTINGS_KEY, defaultLocalSettings, type DashboardLanding, type LocalSettings } from "@/frontend/utils/localSettings";
 
 export default function SettingsPage() {
   const farms = useAppStore((state) => state.farms);

@@ -2,13 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { Pencil, Plus, RotateCcw, UserRoundCog } from "lucide-react";
-import { Topbar } from "@/components/layout/Topbar";
-import { ErrorState } from "@/components/shared/ErrorStates";
-import { useAppStore } from "@/lib/store";
-import { Badge, EmptyState, FormErrorBanner, InlineFieldError, StatusDot } from "@/components/shared/index";
+import { Topbar } from "@/frontend/components/layout/Topbar";
+import { ErrorState } from "@/frontend/components/shared/ErrorStates";
+import { useAppStore } from "@/frontend/context/store";
+import { Badge, EmptyState, FormErrorBanner, InlineFieldError, StatusDot } from "@/frontend/components/shared/index";
 import type { UserRole } from "@/types";
-import { isValidEmail, isValidPhone } from "@/lib/validation";
-import { apiCreateUser, apiUpdateUser } from "@/lib/api/client";
+import { isValidEmail, isValidPhone } from "@/frontend/utils/validation";
+import { apiCreateUser, apiUpdateUser } from "@/frontend/services/client";
 
 function UserAvatar({ name }: { name: string }) {
   const initials = name

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { isDbConfigured } from "@/lib/db";
-import { fetchSystemLogs } from "@/lib/api/queries";
+import { isDbConfigured } from "@/backend/config/db";
+import { fetchSystemLogs } from "@/backend/services/queries";
 
 export const dynamic = "force-dynamic";
 

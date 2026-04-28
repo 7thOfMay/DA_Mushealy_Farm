@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-import { isDbConfigured } from "@/lib/db";
-import { sendDeviceCommand, insertSystemLog } from "@/lib/api/queries";
+import { isDbConfigured } from "@/backend/config/db";
+import { sendDeviceCommand, insertSystemLog } from "@/backend/services/queries";
 
 export async function POST(request: Request) {
   if (!isDbConfigured()) {

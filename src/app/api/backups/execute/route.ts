@@ -5,9 +5,9 @@ import { writeFile, mkdir, stat } from "fs/promises";
 import path from "path";
 
 export const dynamic = "force-dynamic";
-import { isDbConfigured } from "@/lib/db";
-import { isAdminRequest } from "@/lib/auth.server";
-import { insertBackup, updateBackup, insertSystemLog } from "@/lib/api/queries";
+import { isDbConfigured } from "@/backend/config/db";
+import { isAdminRequest } from "@/backend/middleware/auth";
+import { insertBackup, updateBackup, insertSystemLog } from "@/backend/services/queries";
 
 const execFileAsync = promisify(execFile);
 

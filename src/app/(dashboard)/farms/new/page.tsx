@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Topbar } from "@/components/layout/Topbar";
-import { useAppStore } from "@/lib/store";
-import { apiCreateFarm } from "@/lib/api/client";
-import { FormErrorBanner, InlineFieldError } from "@/components/shared";
+import { Topbar } from "@/frontend/components/layout/Topbar";
+import { useAppStore } from "@/frontend/context/store";
+import { apiCreateFarm } from "@/frontend/services/client";
+import { FormErrorBanner, InlineFieldError } from "@/frontend/components/shared";
 
 export default function NewFarmPage() {
   const router = useRouter();

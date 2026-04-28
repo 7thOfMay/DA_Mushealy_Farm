@@ -3,10 +3,10 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Topbar } from "@/components/layout/Topbar";
-import { useAppStore } from "@/lib/store";
-import { getVisibleFarmsForViewer } from "@/lib/dataScope";
-import { getDashboardLandingPath } from "@/lib/localSettings";
+import { Topbar } from "@/frontend/components/layout/Topbar";
+import { useAppStore } from "@/frontend/context/store";
+import { getVisibleFarmsForViewer } from "@/frontend/utils/dataScope";
+import { getDashboardLandingPath } from "@/frontend/utils/localSettings";
 
 export default function DashboardPage() {
   const router = useRouter();

@@ -4,13 +4,13 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, X, ChevronRight } from "lucide-react";
 import Image from "next/image";
-import { cn } from "@/lib/utils";
-import { useAppStore } from "@/lib/store";
-import { FormErrorBanner, InlineFieldError } from "@/components/shared";
-import { ValidationFeedback } from "@/components/shared/ValidationFeedback";
-import { isValidEmail, isValidPassword } from "@/lib/validation";
-import { getDashboardLandingPath } from "@/lib/localSettings";
-import { apiLogin, apiRegister } from "@/lib/api/client";
+import { cn } from "@/frontend/utils/utils";
+import { useAppStore } from "@/frontend/context/store";
+import { FormErrorBanner, InlineFieldError } from "@/frontend/components/shared";
+import { ValidationFeedback } from "@/frontend/components/shared/ValidationFeedback";
+import { isValidEmail, isValidPassword } from "@/frontend/utils/validation";
+import { getDashboardLandingPath } from "@/frontend/utils/localSettings";
+import { apiLogin, apiRegister } from "@/frontend/services/client";
 
 // ── Login Modal ──────────────────────────────────────────────────────────────
 function LoginModal({ onClose }: { onClose: () => void }) {

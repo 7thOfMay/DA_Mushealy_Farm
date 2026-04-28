@@ -3,10 +3,10 @@
 import { useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { Upload, BrainCircuit, CheckCircle, Leaf, Droplets, Bug, Microscope } from "lucide-react";
-import { Topbar } from "@/components/layout/Topbar";
-import { ErrorState, LoadingState } from "@/components/shared/ErrorStates";
-import { useAppStore } from "@/lib/store";
-import { cn, timeAgo } from "@/lib/utils";
+import { Topbar } from "@/frontend/components/layout/Topbar";
+import { ErrorState, LoadingState } from "@/frontend/components/shared/ErrorStates";
+import { useAppStore } from "@/frontend/context/store";
+import { cn, timeAgo } from "@/frontend/utils/utils";
 
 type SubTab = "detection" | "classification";
 

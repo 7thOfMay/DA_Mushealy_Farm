@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { createHash } from "crypto";
 
 export const dynamic = "force-dynamic";
-import { isDbConfigured } from "@/lib/db";
-import { fetchUserByEmail, insertUser, insertSystemLog } from "@/lib/api/queries";
+import { isDbConfigured } from "@/backend/config/db";
+import { fetchUserByEmail, insertUser, insertSystemLog } from "@/backend/services/queries";
 
 export async function POST(request: Request) {
   if (!isDbConfigured()) {

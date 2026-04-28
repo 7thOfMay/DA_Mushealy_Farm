@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-import { isDbConfigured } from "@/lib/db";
-import { fetchUserByEmail } from "@/lib/api/queries";
+import { isDbConfigured } from "@/backend/config/db";
+import { fetchUserByEmail } from "@/backend/services/queries";
 
 export async function POST(request: Request) {
   if (!isDbConfigured()) {

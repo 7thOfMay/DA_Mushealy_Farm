@@ -3,9 +3,9 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Topbar } from "@/components/layout/Topbar";
-import { useAppStore } from "@/lib/store";
-import { getVisibleFarmsForViewer } from "@/lib/dataScope";
+import { Topbar } from "@/frontend/components/layout/Topbar";
+import { useAppStore } from "@/frontend/context/store";
+import { getVisibleFarmsForViewer } from "@/frontend/utils/dataScope";
 
 export default function DevicesPage() {
   const router = useRouter();

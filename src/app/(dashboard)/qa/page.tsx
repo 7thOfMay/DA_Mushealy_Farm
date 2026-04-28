@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
-import { Topbar } from "@/components/layout/Topbar";
-import { Badge } from "@/components/shared/index";
-import { useAppStore } from "@/lib/store";
+import { Topbar } from "@/frontend/components/layout/Topbar";
+import { Badge } from "@/frontend/components/shared/index";
+import { useAppStore } from "@/frontend/context/store";
 import type { BackupRecord, Schedule } from "@/types";
 import { Beaker, Bug, CalendarClock, DatabaseBackup, FileText } from "lucide-react";
 

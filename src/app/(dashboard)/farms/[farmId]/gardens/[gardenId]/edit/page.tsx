@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Topbar } from "@/components/layout/Topbar";
-import { useAppStore } from "@/lib/store";
-import { FormErrorBanner, InlineFieldError } from "@/components/shared";
-import { apiUpdateGarden } from "@/lib/api/client";
+import { Topbar } from "@/frontend/components/layout/Topbar";
+import { useAppStore } from "@/frontend/context/store";
+import { FormErrorBanner, InlineFieldError } from "@/frontend/components/shared";
+import { apiUpdateGarden } from "@/frontend/services/client";
 import type { PlantType } from "@/types";
 
 const colorMap: Record<PlantType, string> = {

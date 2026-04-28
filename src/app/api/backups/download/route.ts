@@ -3,9 +3,9 @@ import { readFile, stat } from "fs/promises";
 import path from "path";
 
 export const dynamic = "force-dynamic";
-import { isDbConfigured } from "@/lib/db";
-import { queryOne } from "@/lib/db";
-import { isAdminRequest } from "@/lib/auth.server";
+import { isDbConfigured } from "@/backend/config/db";
+import { queryOne } from "@/backend/config/db";
+import { isAdminRequest } from "@/backend/middleware/auth";
 
 const BACKUP_DIR = path.join(process.cwd(), "backups");
 

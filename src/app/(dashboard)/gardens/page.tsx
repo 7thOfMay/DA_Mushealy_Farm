@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Topbar } from "@/components/layout/Topbar";
-import { useAppStore } from "@/lib/store";
-import { GardenStation } from "@/components/dashboard/GardenStation";
-import { Badge } from "@/components/shared/index";
-import { ErrorState } from "@/components/shared/ErrorStates";
+import { Topbar } from "@/frontend/components/layout/Topbar";
+import { useAppStore } from "@/frontend/context/store";
+import { GardenStation } from "@/frontend/components/dashboard/GardenStation";
+import { Badge } from "@/frontend/components/shared/index";
+import { ErrorState } from "@/frontend/components/shared/ErrorStates";
 import { ArrowRight, Droplet, Leaf, MapPin, Sun, Thermometer } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/frontend/utils/utils";
 
 
 const plantMetrics = [

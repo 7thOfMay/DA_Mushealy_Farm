@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
 import { useEffect } from "react";
-import { Topbar } from "@/components/layout/Topbar";
-import { Badge, EmptyState, StatusDot } from "@/components/shared";
-import { ThresholdCard } from "@/components/threshold/ThresholdCard";
-import { getCropTypeById, getGardenSensorSummary } from "@/lib/api";
-import { useAppStore } from "@/lib/store";
-import { formatDateTime, timeAgo } from "@/lib/utils";
+import { Topbar } from "@/frontend/components/layout/Topbar";
+import { Badge, EmptyState, StatusDot } from "@/frontend/components/shared";
+import { ThresholdCard } from "@/frontend/components/threshold/ThresholdCard";
+import { getCropTypeById, getGardenSensorSummary } from "@/frontend/services";
+import { useAppStore } from "@/frontend/context/store";
+import { formatDateTime, timeAgo } from "@/frontend/utils/utils";
 import { AlertTriangle, ClipboardList, Cpu, Droplet, Droplets, Sun, Thermometer } from "lucide-react";
 
 const statusBadgeVariant = {

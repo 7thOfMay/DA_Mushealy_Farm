@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
-import { Topbar } from "@/components/layout/Topbar";
-import { Badge, EmptyState } from "@/components/shared/index";
-import { useAppStore } from "@/lib/store";
+import { Topbar } from "@/frontend/components/layout/Topbar";
+import { Badge, EmptyState } from "@/frontend/components/shared/index";
+import { useAppStore } from "@/frontend/context/store";
 
-import { GardenStation } from "@/components/dashboard/GardenStation";
+import { GardenStation } from "@/frontend/components/dashboard/GardenStation";
 import { Cpu, Sprout, AlertTriangle, Activity, ShieldAlert } from "lucide-react";
 
 export default function FarmDetailPage() {

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-import { isDbConfigured } from "@/lib/db";
-import { fetchBackups, insertBackup, updateBackup } from "@/lib/api/queries";
+import { isDbConfigured } from "@/backend/config/db";
+import { fetchBackups, insertBackup, updateBackup } from "@/backend/services/queries";
 
 export async function GET() {
   if (!isDbConfigured()) {

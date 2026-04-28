@@ -2,11 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { Topbar } from "@/components/layout/Topbar";
-import { useAppStore } from "@/lib/store";
-import { Badge, EmptyState, FormErrorBanner, InlineFieldError } from "@/components/shared/index";
-import { cn } from "@/lib/utils";
-import { apiCreateSchedule, apiDeleteSchedule, apiUpdateSchedule } from "@/lib/api/client";
+import { Topbar } from "@/frontend/components/layout/Topbar";
+import { useAppStore } from "@/frontend/context/store";
+import { Badge, EmptyState, FormErrorBanner, InlineFieldError } from "@/frontend/components/shared/index";
+import { cn } from "@/frontend/utils/utils";
+import { apiCreateSchedule, apiDeleteSchedule, apiUpdateSchedule } from "@/frontend/services/client";
 import type { RepeatType, Schedule, ScheduleAction, ScheduleType, SensorType } from "@/types";
 import { CalendarClock, Clock3, Gauge, Hand, Plus, Power, Repeat, Trash2, X } from "lucide-react";
 

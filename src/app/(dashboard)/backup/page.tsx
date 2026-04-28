@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Topbar } from "@/components/layout/Topbar";
-import { Badge } from "@/components/shared/index";
-import { useAppStore } from "@/lib/store";
-import { cn, formatDateTime, timeAgo } from "@/lib/utils";
-import { apiCreateBackup, apiUpdateBackup, apiExecuteBackup, apiDownloadBackupUrl } from "@/lib/api/client";
+import { Topbar } from "@/frontend/components/layout/Topbar";
+import { Badge } from "@/frontend/components/shared/index";
+import { useAppStore } from "@/frontend/context/store";
+import { cn, formatDateTime, timeAgo } from "@/frontend/utils/utils";
+import { apiCreateBackup, apiUpdateBackup, apiExecuteBackup, apiDownloadBackupUrl } from "@/frontend/services/client";
 import type { BackupRecord } from "@/types";
 import { DatabaseBackup, Download, HardDrive, RefreshCw, RotateCcw, TriangleAlert } from "lucide-react";
 

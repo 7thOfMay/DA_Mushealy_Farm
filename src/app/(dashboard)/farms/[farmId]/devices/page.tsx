@@ -2,15 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { Topbar } from "@/components/layout/Topbar";
-import { ErrorState } from "@/components/shared/ErrorStates";
-import { useAppStore } from "@/lib/store";
-import { Badge, EmptyState, FormErrorBanner, InlineFieldError, StatusDot } from "@/components/shared/index";
-import { ToggleSwitch } from "@/components/shared/ToggleSwitch";
-import { RGBController } from "@/components/devices/RGBController";
-import { cn, timeAgo } from "@/lib/utils";
-import { apiCreateDevice, apiUpdateDevice, apiSendDeviceCommand } from "@/lib/api/client";
-import { lockDeviceToggle } from "@/hooks/useApiHydration";
+import { Topbar } from "@/frontend/components/layout/Topbar";
+import { ErrorState } from "@/frontend/components/shared/ErrorStates";
+import { useAppStore } from "@/frontend/context/store";
+import { Badge, EmptyState, FormErrorBanner, InlineFieldError, StatusDot } from "@/frontend/components/shared/index";
+import { ToggleSwitch } from "@/frontend/components/shared/ToggleSwitch";
+import { RGBController } from "@/frontend/components/devices/RGBController";
+import { cn, timeAgo } from "@/frontend/utils/utils";
+import { apiCreateDevice, apiUpdateDevice, apiSendDeviceCommand } from "@/frontend/services/client";
+import { lockDeviceToggle } from "@/frontend/hooks/useApiHydration";
 import type { DeviceType } from "@/types";
 import {
   Activity,

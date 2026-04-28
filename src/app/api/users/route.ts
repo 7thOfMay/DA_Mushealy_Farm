@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-import { isDbConfigured } from "@/lib/db";
-import { fetchUsers, insertUser, updateUser, deleteUser } from "@/lib/api/queries";
-import { isAdminRequest } from "@/lib/auth.server";
+import { isDbConfigured } from "@/backend/config/db";
+import { fetchUsers, insertUser, updateUser, deleteUser } from "@/backend/services/queries";
+import { isAdminRequest } from "@/backend/middleware/auth";
 import { createHash } from "crypto";
 
 export async function GET() {

@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Power, Settings2, AlertTriangle, LogIn, LogOut, Plus, Trash2, Search, Filter } from "lucide-react";
-import { Topbar } from "@/components/layout/Topbar";
+import { Topbar } from "@/frontend/components/layout/Topbar";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { EmptyState } from "@/components/shared/index";
-import { ErrorState } from "@/components/shared/ErrorStates";
-import { getVisibleFarmsForViewer } from "@/lib/dataScope";
-import { cn, timeAgo, formatDateTime } from "@/lib/utils";
+import { EmptyState } from "@/frontend/components/shared/index";
+import { ErrorState } from "@/frontend/components/shared/ErrorStates";
+import { getVisibleFarmsForViewer } from "@/frontend/utils/dataScope";
+import { cn, timeAgo, formatDateTime } from "@/frontend/utils/utils";
 import type { LogActionType } from "@/types";
-import { useAppStore } from "@/lib/store";
+import { useAppStore } from "@/frontend/context/store";
 
 const actionConfig: Record<LogActionType, { icon: typeof Power; color: string; bg: string; label: string }> = {
   DEVICE_TOGGLE: { icon: Power, color: "#1B4332", bg: "#F0FAF3", label: "Bật/Tắt thiết bị" },
