@@ -13,6 +13,7 @@ interface TopbarProps {
 
 export function Topbar({ title, subtitle, titleVariant = "display" }: TopbarProps) {
   const toggleSidebar = useAppStore((s) => s.toggleSidebar);
+  const toggleSidebarCollapsed = useAppStore((s) => s.toggleSidebarCollapsed);
   const alerts = useAppStore((s) => s.alerts);
   const unhandledAlerts = alerts.filter((alert) => alert.status === "DETECTED").length;
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -25,15 +26,25 @@ export function Topbar({ title, subtitle, titleVariant = "display" }: TopbarProp
     return () => clearInterval(interval);
   }, []);
 
+  const handleMenuClick = () => {
+    if (typeof window !== "undefined" && window.innerWidth >= 1024) {
+      toggleSidebarCollapsed();
+      return;
+    }
+    toggleSidebar();
+  };
+
   return (
     <header className="flex items-center justify-between border-b border-[#E2E8E4] bg-[#F7F8F6] px-8 py-5">
       <div className="flex items-center gap-4">
         <button
-          onClick={toggleSidebar}
-          className="rounded-[8px] p-2 transition-colors hover:bg-[#E2E8E4] lg:hidden"
+          onClick={handleMenuClick}
+          className="rounded-[8px] p-2 transition-colors hover:bg-[#E2E8E4]"
+          title="Thu gọn hoặc mở sidebar"
         >
           <Menu size={20} className="text-[#1A2E1F]" />
         </button>
+
         <div>
           <h1
             className={cn(
