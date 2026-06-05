@@ -1,134 +1,258 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Power, Settings2, AlertTriangle, LogIn, LogOut, Plus, Trash2, Search, Filter } from "lucide-react";
+import { AlertTriangle, Cpu, Filter, History, Search, Settings2, Waves } from "lucide-react";
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import { Topbar } from "@/frontend/components/layout/Topbar";
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { EmptyState } from "@/frontend/components/shared/index";
+import { EmptyState } from "@/frontend/components/shared";
 import { ErrorState } from "@/frontend/components/shared/ErrorStates";
-import { getVisibleFarmsForViewer } from "@/frontend/utils/dataScope";
-import { cn, timeAgo, formatDateTime } from "@/frontend/utils/utils";
-import type { LogActionType } from "@/types";
 import { useAppStore } from "@/frontend/context/store";
+import { getVisibleFarmsForViewer } from "@/frontend/utils/dataScope";
+import { cn, formatDateTime, timeAgo } from "@/frontend/utils/utils";
+import type { ChartDataPoint, Garden } from "@/types";
 
-const actionConfig: Record<LogActionType, { icon: typeof Power; color: string; bg: string; label: string }> = {
-  DEVICE_TOGGLE: { icon: Power, color: "#1B4332", bg: "#F0FAF3", label: "Bật/Tắt thiết bị" },
-  CONFIG_CHANGE: { icon: Settings2, color: "#2980B9", bg: "#EBF5FB", label: "Thay đổi cấu hình" },
-  ALERT_ACTION: { icon: AlertTriangle, color: "#E67E22", bg: "#FEF9EE", label: "Xử lý cảnh báo" },
-  USER_LOGIN: { icon: LogIn, color: "#27AE60", bg: "#DCFCE7", label: "Đăng nhập" },
-  USER_LOGOUT: { icon: LogOut, color: "#5C7A6A", bg: "#F1F5F9", label: "Đăng xuất" },
-  DEVICE_ADD: { icon: Plus, color: "#1B4332", bg: "#F0FAF3", label: "Thêm thiết bị" },
-  DEVICE_REMOVE: { icon: Trash2, color: "#C0392B", bg: "#FEE2E2", label: "Xóa thiết bị" },
-  SCHEDULE_CREATE: { icon: Power, color: "#F39C12", bg: "#FEF3C7", label: "Tạo lịch trình" },
+type JournalKind = "sensor" | "alert" | "command" | "audit";
+type MetricFilter = "all" | "temperature" | "humidity_air" | "humidity_soil" | "light";
+type TimeFilter = "1h" | "24h" | "7d" | "30d";
+
+type JournalEntry = {
+  id: string;
+  kind: JournalKind;
+  timestamp: string;
+  title: string;
+  description: string;
+  farmId?: string;
+  farmName?: string;
+  gardenId?: string;
+  gardenName?: string;
+  deviceId?: string;
+  deviceName?: string;
+  actorName?: string;
+  metricType?: "temperature" | "humidity_air" | "humidity_soil" | "light";
+  value?: number;
+  unit?: string;
+  severity?: string;
+  status?: string;
+  before?: string;
+  after?: string;
 };
+
+type JournalSummary = {
+  total: number;
+  sensor: number;
+  alert: number;
+  command: number;
+  audit: number;
+};
+
+type JournalResponse = {
+  entries: JournalEntry[];
+  summary: JournalSummary;
+};
+
+type ChartResponse = {
+  temperatureChartData: ChartDataPoint[];
+  humidityAirChartData: ChartDataPoint[];
+  humiditySoilChartData: ChartDataPoint[];
+  lightChartData: ChartDataPoint[];
+};
+
+const TIME_FILTERS: Array<{ key: TimeFilter; label: string; hours: number }> = [
+  { key: "1h", label: "1 giờ", hours: 1 },
+  { key: "24h", label: "Hôm nay", hours: 24 },
+  { key: "7d", label: "7 ngày", hours: 24 * 7 },
+  { key: "30d", label: "30 ngày", hours: 24 * 30 },
+];
+
+const KIND_FILTERS: Array<{ key: "all" | JournalKind; label: string }> = [
+  { key: "all", label: "Tất cả bản ghi" },
+  { key: "sensor", label: "Cảm biến" },
+  { key: "alert", label: "Cảnh báo" },
+  { key: "command", label: "Lệnh thiết bị" },
+  { key: "audit", label: "Nhật ký hệ thống" },
+];
+
+const METRIC_FILTERS: Array<{ key: MetricFilter; label: string }> = [
+  { key: "all", label: "Tất cả chỉ số" },
+  { key: "temperature", label: "Nhiệt độ" },
+  { key: "humidity_air", label: "Ẩm không khí" },
+  { key: "humidity_soil", label: "Ẩm đất" },
+  { key: "light", label: "Ánh sáng" },
+];
+
+const ENTRY_STYLE: Record<JournalKind, { icon: typeof Waves; color: string; bg: string; label: string }> = {
+  sensor: { icon: Waves, color: "#1B4332", bg: "#F0FAF3", label: "Cảm biến" },
+  alert: { icon: AlertTriangle, color: "#C0392B", bg: "#FEE2E2", label: "Cảnh báo" },
+  command: { icon: Cpu, color: "#2980B9", bg: "#EBF5FB", label: "Lệnh thiết bị" },
+  audit: { icon: History, color: "#5C7A6A", bg: "#F1F5F9", label: "Nhật ký hệ thống" },
+};
+
+function getHours(filter: TimeFilter) {
+  return TIME_FILTERS.find((item) => item.key === filter)?.hours ?? 24 * 7;
+}
+
+function toGardenSeries(chartData: ChartResponse, selectedGarden: Garden, visibleGardens: Garden[], metric: MetricFilter) {
+  const gardenIndex = visibleGardens.findIndex((garden) => garden.id === selectedGarden.id);
+  if (gardenIndex < 0) return [];
+
+  const source =
+    metric === "temperature"
+      ? chartData.temperatureChartData
+      : metric === "humidity_air"
+        ? chartData.humidityAirChartData
+        : metric === "humidity_soil"
+          ? chartData.humiditySoilChartData
+          : chartData.lightChartData;
+
+  return source
+    .map((point) => {
+      const key = `garden${gardenIndex + 1}` as "garden1" | "garden2" | "garden3";
+      const value = point[key];
+      return typeof value === "number"
+        ? { time: point.time, value: metric === "light" ? Number((value / 1000).toFixed(2)) : value }
+        : null;
+    })
+    .filter((item): item is { time: string; value: number } => item !== null);
+}
 
 export default function LogsPage() {
   const currentFarmId = useAppStore((state) => state.currentFarmId);
   const farms = useAppStore((state) => state.farms);
   const users = useAppStore((state) => state.users);
+  const gardens = useAppStore((state) => state.gardens);
   const selectedFarmerId = useAppStore((state) => state.selectedFarmerId);
   const loggedInUser = useAppStore((state) => state.loggedInUser);
-  const gardens = useAppStore((state) => state.gardens);
-  const logs = useAppStore((state) => state.logs);
-  const temperatureChartData = useAppStore((state) => state.temperatureChartData);
-  const humiditySoilChartData = useAppStore((state) => state.humiditySoilChartData);
-  const [isMounted, setIsMounted] = useState(false);
+
   const [search, setSearch] = useState("");
-  const [actionFilter, setActionFilter] = useState<"all" | LogActionType>("all");
-  const [timeFilter, setTimeFilter] = useState<"all" | "today" | "7d" | "30d">("7d");
-  const [chartType, setChartType] = useState<"temperature" | "humidity_soil">("temperature");
-  const [focusedHour, setFocusedHour] = useState<number | null>(null);
-  const [selectedLogId, setSelectedLogId] = useState<string | null>(null);
+  const [kindFilter, setKindFilter] = useState<"all" | JournalKind>("all");
+  const [metricFilter, setMetricFilter] = useState<MetricFilter>("all");
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>("7d");
+  const [selectedGardenId, setSelectedGardenId] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [journal, setJournal] = useState<JournalResponse>({ entries: [], summary: { total: 0, sensor: 0, alert: 0, command: 0, audit: 0 } });
+  const [chartData, setChartData] = useState<ChartResponse>({
+    temperatureChartData: [],
+    humidityAirChartData: [],
+    humiditySoilChartData: [],
+    lightChartData: [],
+  });
 
   const visibleFarms = useMemo(
     () => getVisibleFarmsForViewer({ farms, users, loggedInUser, selectedFarmerId }),
-    [farms, users, loggedInUser, selectedFarmerId]
+    [farms, users, loggedInUser, selectedFarmerId],
   );
+
   const visibleFarmIds = useMemo(() => new Set(visibleFarms.map((farm) => farm.id)), [visibleFarms]);
   const scopedGardens = useMemo(
-    () => gardens.filter((garden) => garden.farmId && visibleFarmIds.has(garden.farmId)),
-    [gardens, visibleFarmIds]
+    () => gardens.filter((garden) => !!garden.farmId && visibleFarmIds.has(garden.farmId)),
+    [gardens, visibleFarmIds],
   );
 
-  const farmGardenIds = useMemo(
-    () => new Set(scopedGardens.filter((garden) => !currentFarmId || garden.farmId === currentFarmId).map((garden) => garden.id)),
-    [scopedGardens, currentFarmId]
+  const farmScopedGardens = useMemo(
+    () => scopedGardens.filter((garden) => !currentFarmId || garden.farmId === currentFarmId),
+    [scopedGardens, currentFarmId],
   );
 
-  const sorted = [...logs]
-    .filter((log) => !log.gardenId || farmGardenIds.has(log.gardenId))
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  useEffect(() => {
+    if (!farmScopedGardens.length) {
+      setSelectedGardenId("");
+      return;
+    }
+    if (!farmScopedGardens.some((garden) => garden.id === selectedGardenId)) {
+      setSelectedGardenId(farmScopedGardens[0].id);
+    }
+  }, [farmScopedGardens, selectedGardenId]);
 
-  const uniqueDates = useMemo(() => {
-    const values = Array.from(new Set(sorted.map((log) => log.timestamp.slice(0, 10))));
-    return values.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
-  }, [sorted]);
-
-  const [selectedDate, setSelectedDate] = useState<string>(uniqueDates[0] ?? "");
+  const selectedGarden = farmScopedGardens.find((garden) => garden.id === selectedGardenId) ?? farmScopedGardens[0] ?? null;
+  const chartMetric = metricFilter === "all" ? "temperature" : metricFilter;
 
   useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!selectedDate && uniqueDates.length) {
-      setSelectedDate(uniqueDates[0]);
+    if (!visibleFarms.length) {
+      setLoading(false);
+      setJournal({ entries: [], summary: { total: 0, sensor: 0, alert: 0, command: 0, audit: 0 } });
+      return;
     }
-    if (selectedDate && uniqueDates.length && !uniqueDates.includes(selectedDate)) {
-      setSelectedDate(uniqueDates[0]);
-    }
-  }, [selectedDate, uniqueDates]);
 
-  const now = Date.now();
-  const filtered = sorted.filter((log) => {
-    const matchesSearch = !search || [log.description, log.userName, log.gardenName ?? ""].join(" ").toLowerCase().includes(search.toLowerCase());
-    const matchesAction = actionFilter === "all" || log.actionType === actionFilter;
+    const hours = getHours(timeFilter);
+    let cancelled = false;
 
-    let matchesTime = true;
-    const ageMs = now - new Date(log.timestamp).getTime();
-    if (timeFilter === "today") matchesTime = ageMs <= 24 * 60 * 60 * 1000;
-    if (timeFilter === "7d") matchesTime = ageMs <= 7 * 24 * 60 * 60 * 1000;
-    if (timeFilter === "30d") matchesTime = ageMs <= 30 * 24 * 60 * 60 * 1000;
+    const loadJournal = async () => {
+      try {
+        setError(null);
+        const params = new URLSearchParams();
+        params.set("hours", String(hours));
+        params.set("limit", "500");
+        if (currentFarmId) params.set("farmId", currentFarmId);
+        if (selectedGarden?.id) params.set("gardenId", selectedGarden.id);
+        if (search.trim()) params.set("q", search.trim());
+        if (kindFilter !== "all") params.set("kinds", kindFilter);
+        if (metricFilter !== "all") params.set("metricType", metricFilter);
 
-    const matchesDate = !selectedDate || log.timestamp.startsWith(selectedDate);
-    const matchesFocusedHour = focusedHour === null || new Date(log.timestamp).getHours() === focusedHour;
+        const journalResponse = await fetch(`/api/logs/journal?${params.toString()}`, { cache: "no-store" });
+        if (!journalResponse.ok) {
+          throw new Error("Không thể tải nhật ký tổng thể");
+        }
 
-    return matchesSearch && matchesAction && matchesTime && matchesDate && matchesFocusedHour;
-  });
+        const nextJournal = (await journalResponse.json()) as JournalResponse;
 
-  const chartData = chartType === "temperature" ? temperatureChartData : humiditySoilChartData;
-  const eventHours = new Set(filtered.map((log) => new Date(log.timestamp).getHours()));
-  const chartGardenCount = Math.max(1, scopedGardens.filter((garden) => !currentFarmId || garden.farmId === currentFarmId).slice(0, 3).length);
+        let nextChart: ChartResponse = {
+          temperatureChartData: [],
+          humidityAirChartData: [],
+          humiditySoilChartData: [],
+          lightChartData: [],
+        };
 
-  const chartSeries = chartData.map((item) => {
-    const hour = Number(item.time.split(":")[0]);
-    const total = Array.from({ length: chartGardenCount }).reduce<number>((sum, _, idx) => {
-      const key = `garden${idx + 1}` as "garden1" | "garden2" | "garden3";
-      return sum + Number(item[key] ?? 0);
-    }, 0);
-    const value = total / chartGardenCount;
-    return {
-      time: item.time,
-      value: Number(value.toFixed(1)),
-      hour,
-      event: eventHours.has(hour),
+        if (selectedGarden?.id) {
+          const chartParams = new URLSearchParams();
+          chartParams.set("hours", String(hours));
+          chartParams.append("gardenId", selectedGarden.id);
+          const chartResponse = await fetch(`/api/sensors/chart?${chartParams.toString()}`, { cache: "no-store" });
+          if (chartResponse.ok) {
+            nextChart = (await chartResponse.json()) as ChartResponse;
+          }
+        }
+
+        if (!cancelled) {
+          setJournal(nextJournal);
+          setChartData(nextChart);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Không thể tải nhật ký");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
     };
-  });
 
-  const onClickEventMarker = (hour: number) => {
-    setFocusedHour(hour);
-    const match = filtered.find((log) => new Date(log.timestamp).getHours() === hour);
-    if (match) setSelectedLogId(match.id);
-  };
+    setLoading(true);
+    void loadJournal();
+    const interval = window.setInterval(loadJournal, 10000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [visibleFarms.length, currentFarmId, selectedGarden?.id, search, kindFilter, metricFilter, timeFilter]);
+
+  const chartSeries = useMemo(
+    () => (selectedGarden ? toGardenSeries(chartData, selectedGarden, farmScopedGardens.slice(0, 3), chartMetric) : []),
+    [chartData, selectedGarden, farmScopedGardens, chartMetric],
+  );
+
+  const metricUnit = chartMetric === "temperature" ? "°C" : chartMetric === "light" ? "k lux" : "%";
 
   if (visibleFarms.length === 0) {
     return (
       <div>
-        <Topbar title="Nhật ký hệ thống" subtitle="Chưa có dữ liệu trong phạm vi quản lý" />
-        <div className="p-8 max-w-3xl">
+        <Topbar title="Nhật ký tổng thể" subtitle="Chưa có dữ liệu trong phạm vi quản lý" />
+        <div className="max-w-3xl p-8">
           <ErrorState
             title="Không có nhật ký để hiển thị"
-            description="Hãy chọn nông dân ở sidebar hoặc tạo nông trại để bắt đầu theo dõi nhật ký."
+            description="Hãy chọn nông dân ở sidebar hoặc tạo nông trại để bắt đầu theo dõi lịch sử dữ liệu."
           />
         </div>
       </div>
@@ -137,133 +261,64 @@ export default function LogsPage() {
 
   return (
     <div>
-      <Topbar title="Nhật ký hệ thống" subtitle={`${filtered.length} / ${sorted.length} hoạt động đang hiển thị`} />
+      <Topbar title="Nhật ký tổng thể" subtitle={`${journal.summary.total} bản ghi đang hiển thị`} />
 
-      <div className="p-8">
-        <div className="grid grid-cols-1 xl:grid-cols-[240px_1fr] gap-4 mb-5">
-          <div className="card p-3">
-            <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A] mb-2">Ngày hoạt động</p>
-            <div className="space-y-1 max-h-[240px] overflow-y-auto pr-1">
-              {uniqueDates.map((dateKey) => (
-                <button
-                  key={dateKey}
-                  onClick={() => setSelectedDate(dateKey)}
-                  className={cn(
-                    "w-full text-left px-3 py-2 rounded-[10px] text-[0.8125rem] border transition-colors",
-                    selectedDate === dateKey
-                      ? "bg-[#1B4332] text-white border-[#1B4332]"
-                      : "bg-white text-[#1A2E1F] border-[#E2E8E4] hover:border-[#1B4332]"
-                  )}
-                >
-                  {new Date(dateKey).toLocaleDateString("vi-VN")}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="card p-4">
-            <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-              <div>
-                <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A]">Sensor Chart</p>
-                <p className="text-[0.8125rem] text-[#1A2E1F]">Marker đỏ thể hiện khung giờ có event log</p>
+      <div className="space-y-5 p-8">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {[
+            { label: "Cảm biến", value: journal.summary.sensor, color: "#1B4332", icon: Waves },
+            { label: "Cảnh báo", value: journal.summary.alert, color: "#C0392B", icon: AlertTriangle },
+            { label: "Lệnh thiết bị", value: journal.summary.command, color: "#2980B9", icon: Cpu },
+            { label: "Nhật ký hệ thống", value: journal.summary.audit, color: "#5C7A6A", icon: History },
+          ].map((item) => {
+            const Icon = item.icon;
+            return (
+              <div key={item.label} className="card p-5">
+                <div className="mb-2 flex items-center gap-2">
+                  <Icon size={16} style={{ color: item.color }} />
+                  <span className="text-[0.75rem] font-semibold uppercase tracking-wide text-[#5C7A6A]">{item.label}</span>
+                </div>
+                <p className="text-[2rem] font-bold text-[#1A2E1F]">{item.value}</p>
               </div>
-              <div className="flex gap-2">
-                <button onClick={() => setChartType("temperature")} className={cn("px-3 py-1.5 rounded-[20px] text-[0.75rem] border", chartType === "temperature" ? "bg-[#1B4332] text-white border-[#1B4332]" : "border-[#E2E8E4] text-[#5C7A6A]")}>Nhiệt độ</button>
-                <button onClick={() => setChartType("humidity_soil")} className={cn("px-3 py-1.5 rounded-[20px] text-[0.75rem] border", chartType === "humidity_soil" ? "bg-[#1B4332] text-white border-[#1B4332]" : "border-[#E2E8E4] text-[#5C7A6A]")}>Ẩm đất</button>
-              </div>
-            </div>
-            <div className="h-[220px]">
-              {isMounted ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartSeries}>
-                    <XAxis dataKey="time" tick={{ fill: "#5C7A6A", fontSize: 11 }} />
-                    <YAxis tick={{ fill: "#5C7A6A", fontSize: 11 }} />
-                    <Tooltip formatter={(value) => [typeof value === "number" ? value : 0, chartType === "temperature" ? "°C" : "%"]} />
-                    <Line
-                      type="monotone"
-                      dataKey="value"
-                      stroke="#1B4332"
-                      strokeWidth={2}
-                      dot={(props) => {
-                        const dataPoint = props.payload as { event?: boolean; hour?: number };
-                        if (!dataPoint.event || typeof dataPoint.hour !== "number") {
-                          return <circle cx={props.cx} cy={props.cy} r={2} fill="#1B4332" />;
-                        }
-                        return (
-                          <circle
-                            cx={props.cx}
-                            cy={props.cy}
-                            r={focusedHour === dataPoint.hour ? 5 : 4}
-                            fill="#C0392B"
-                            stroke="#FFFFFF"
-                            strokeWidth={1.5}
-                            style={{ cursor: "pointer" }}
-                            onClick={() => onClickEventMarker(dataPoint.hour as number)}
-                          />
-                        );
-                      }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full rounded-[10px] bg-[#F7F8F6] border border-[#E2E8E4]" />
-              )}
-            </div>
-            <div className="mt-3 flex items-center gap-2 flex-wrap">
-              <span className="text-[0.6875rem] text-[#5C7A6A]">Giờ có event:</span>
-              {Array.from(eventHours).sort((a, b) => a - b).map((hour) => (
-                <button
-                  key={hour}
-                  onClick={() => setFocusedHour((prev) => prev === hour ? null : hour)}
-                  className={cn(
-                    "text-[0.6875rem] px-2 py-0.5 rounded-[999px] border",
-                    focusedHour === hour
-                      ? "bg-[#C0392B] text-white border-[#C0392B]"
-                      : "bg-[#FEE2E2] text-[#C0392B] border-[#F4CACA]"
-                  )}
-                >
-                  {hour.toString().padStart(2, "0")}:00
-                </button>
-              ))}
-              {focusedHour !== null && (
-                <button
-                  onClick={() => setFocusedHour(null)}
-                  className="text-[0.6875rem] px-2 py-0.5 rounded-[999px] border border-[#E2E8E4] text-[#5C7A6A]"
-                >
-                  Bỏ lọc giờ
-                </button>
-              )}
-            </div>
-          </div>
+            );
+          })}
         </div>
 
-        <div className="card p-4 mb-5 space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 items-center">
+        <div className="card p-4 space-y-4">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_auto_auto]">
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5C7A6A]" />
               <input
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Tìm theo mô tả, người thao tác hoặc khu vườn"
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Tìm theo mô tả, thiết bị, người thao tác hoặc khu vườn"
                 className="input-field pl-10"
               />
             </div>
+
+            <select
+              className="rounded-[8px] border border-[#E2E8E4] bg-white px-3 py-2 text-[0.8125rem] text-[#1A2E1F]"
+              value={selectedGarden?.id ?? ""}
+              onChange={(event) => setSelectedGardenId(event.target.value)}
+            >
+              {farmScopedGardens.map((garden) => (
+                <option key={garden.id} value={garden.id}>
+                  {garden.name} - {garden.plantLabel}
+                </option>
+              ))}
+            </select>
+
             <div className="flex items-center gap-2 flex-wrap">
               <Filter size={14} className="text-[#5C7A6A]" />
-              {[
-                { id: "all", label: "Tất cả" },
-                { id: "today", label: "Hôm nay" },
-                { id: "7d", label: "7 ngày" },
-                { id: "30d", label: "30 ngày" },
-              ].map((item) => (
+              {TIME_FILTERS.map((item) => (
                 <button
-                  key={item.id}
-                  onClick={() => setTimeFilter(item.id as typeof timeFilter)}
+                  key={item.key}
+                  onClick={() => setTimeFilter(item.key)}
                   className={cn(
                     "px-3 py-1.5 rounded-[20px] text-[0.8125rem] font-medium border transition-colors",
-                    timeFilter === item.id
+                    timeFilter === item.key
                       ? "bg-[#1B4332] text-white border-[#1B4332]"
-                      : "bg-white text-[#5C7A6A] border-[#E2E8E4] hover:border-[#1B4332] hover:text-[#1B4332]"
+                      : "bg-white text-[#5C7A6A] border-[#E2E8E4] hover:border-[#1B4332] hover:text-[#1B4332]",
                   )}
                 >
                   {item.label}
@@ -272,85 +327,165 @@ export default function LogsPage() {
             </div>
           </div>
 
-          <div className="flex gap-2 flex-wrap">
-            <button
-              onClick={() => setActionFilter("all")}
-              className={cn(
-                "px-3 py-1.5 rounded-[20px] text-[0.8125rem] font-medium border transition-colors",
-                actionFilter === "all"
-                  ? "bg-[#1B4332] text-white border-[#1B4332]"
-                  : "bg-white text-[#5C7A6A] border-[#E2E8E4] hover:border-[#1B4332] hover:text-[#1B4332]"
-              )}
-            >
-              Tất cả hành động
-            </button>
-            {(Object.keys(actionConfig) as LogActionType[]).map((type) => (
+          <div className="flex flex-wrap gap-2">
+            {KIND_FILTERS.map((item) => (
               <button
-                key={type}
-                onClick={() => setActionFilter(type)}
+                key={item.key}
+                onClick={() => setKindFilter(item.key)}
                 className={cn(
                   "px-3 py-1.5 rounded-[20px] text-[0.8125rem] font-medium border transition-colors",
-                  actionFilter === type
+                  kindFilter === item.key
                     ? "bg-[#1B4332] text-white border-[#1B4332]"
-                    : "bg-white text-[#5C7A6A] border-[#E2E8E4] hover:border-[#1B4332] hover:text-[#1B4332]"
+                    : "bg-white text-[#5C7A6A] border-[#E2E8E4] hover:border-[#1B4332] hover:text-[#1B4332]",
                 )}
               >
-                {actionConfig[type].label}
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {METRIC_FILTERS.map((item) => (
+              <button
+                key={item.key}
+                onClick={() => setMetricFilter(item.key)}
+                className={cn(
+                  "px-3 py-1.5 rounded-[20px] text-[0.8125rem] font-medium border transition-colors",
+                  metricFilter === item.key
+                    ? "bg-[#1B4332] text-white border-[#1B4332]"
+                    : "bg-white text-[#5C7A6A] border-[#E2E8E4] hover:border-[#1B4332] hover:text-[#1B4332]",
+                )}
+              >
+                {item.label}
               </button>
             ))}
           </div>
         </div>
 
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="card p-5">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A]">Biểu đồ lịch sử cảm biến</p>
+                <p className="text-[0.875rem] text-[#1A2E1F]">
+                  {selectedGarden ? `${selectedGarden.name} • ${METRIC_FILTERS.find((item) => item.key === chartMetric)?.label}` : "Chưa chọn khu vườn"}
+                </p>
+              </div>
+              <div className="rounded-[999px] border border-[#E2E8E4] px-3 py-1 text-[0.75rem] text-[#5C7A6A]">
+                Đơn vị: {metricUnit}
+              </div>
+            </div>
+
+            <div className="h-[260px]">
+              {chartSeries.length === 0 ? (
+                <div className="flex h-full items-center justify-center rounded-[10px] border border-dashed border-[#D7E2DB] bg-[#F7F8F6] px-6 text-center text-[0.875rem] text-[#5C7A6A]">
+                  Không có dữ liệu cảm biến theo bộ lọc hiện tại.
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartSeries}>
+                    <CartesianGrid stroke="#E2E8E4" strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="time" tick={{ fill: "#5C7A6A", fontSize: 11 }} />
+                    <YAxis tick={{ fill: "#5C7A6A", fontSize: 11 }} />
+                    <Tooltip formatter={(value) => [value, metricUnit]} />
+                    <Line type={timeFilter === "1h" ? "stepAfter" : "monotone"} dataKey="value" stroke="#1B4332" strokeWidth={2} dot={timeFilter === "1h" ? { r: 2 } : false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+
+          <div className="card p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <Settings2 size={16} className="text-[#5C7A6A]" />
+              <h3 className="text-[0.9375rem] font-semibold text-[#1A2E1F]">Phạm vi nhật ký hiện tại</h3>
+            </div>
+            <div className="space-y-3 text-[0.875rem] text-[#5C7A6A]">
+              <div>
+                <span className="font-medium text-[#1A2E1F]">Nông trại:</span> {visibleFarms.find((farm) => farm.id === currentFarmId)?.name ?? "Tất cả trong phạm vi"}
+              </div>
+              <div>
+                <span className="font-medium text-[#1A2E1F]">Khu vườn:</span> {selectedGarden?.name ?? "Chưa chọn"}
+              </div>
+              <div>
+                <span className="font-medium text-[#1A2E1F]">Khoảng thời gian:</span> {TIME_FILTERS.find((item) => item.key === timeFilter)?.label}
+              </div>
+              <div>
+                <span className="font-medium text-[#1A2E1F]">Loại bản ghi:</span> {KIND_FILTERS.find((item) => item.key === kindFilter)?.label}
+              </div>
+              <div>
+                <span className="font-medium text-[#1A2E1F]">Chỉ số:</span> {METRIC_FILTERS.find((item) => item.key === metricFilter)?.label}
+              </div>
+              <div className="rounded-[10px] bg-[#F7F8F6] p-3 text-[0.8125rem]">
+                Nhật ký này đã hợp nhất dữ liệu cảm biến, cảnh báo, lệnh thiết bị và nhật ký hệ thống để tra cứu lịch sử theo cùng một màn hình.
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="card overflow-hidden">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="p-6 text-[0.875rem] text-[#5C7A6A]">Đang tải nhật ký tổng thể...</div>
+          ) : error ? (
+            <div className="p-6">
+              <ErrorState title="Không thể tải nhật ký" description={error} />
+            </div>
+          ) : journal.entries.length === 0 ? (
             <EmptyState
               icon={Search}
-              title="Không có nhật ký phù hợp"
-              description="Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc thời gian/hành động."
+              title="Không có bản ghi phù hợp"
+              description="Thử thay đổi khoảng thời gian, loại bản ghi hoặc từ khóa tìm kiếm."
             />
           ) : (
             <div className="divide-y divide-[#E2E8E4]">
-              {filtered.map((log) => {
-                const config = actionConfig[log.actionType];
+              {journal.entries.map((entry) => {
+                const config = ENTRY_STYLE[entry.kind];
                 const Icon = config.icon;
-                const rowHour = new Date(log.timestamp).getHours();
                 return (
-                  <div
-                    key={log.id}
-                    onClick={() => {
-                      setSelectedLogId(log.id);
-                      setFocusedHour(rowHour);
-                    }}
-                    className={cn(
-                      "flex items-start gap-4 px-5 py-4 transition-colors cursor-pointer",
-                      selectedLogId === log.id ? "bg-[#F0FAF3]" : "hover:bg-[#F7F8F6]"
-                    )}
-                  >
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
-                      style={{ backgroundColor: config.bg }}
-                    >
+                  <div key={entry.id} className="flex items-start gap-4 px-5 py-4 hover:bg-[#F7F8F6] transition-colors">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5" style={{ backgroundColor: config.bg }}>
                       <Icon size={14} style={{ color: config.color }} />
                     </div>
 
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[0.875rem] font-medium text-[#1A2E1F]">{log.description}</p>
-                      <div className="flex items-center gap-3 mt-0.5">
-                        <span className="text-[0.75rem] text-[#5C7A6A]">{log.userName}</span>
-                        {log.gardenName && <span className="text-[0.75rem] text-[#5C7A6A]">· {log.gardenName}</span>}
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1 flex flex-wrap items-center gap-2">
+                        <span className="rounded-[999px] px-2 py-0.5 text-[0.6875rem] font-semibold" style={{ color: config.color, backgroundColor: config.bg }}>
+                          {config.label}
+                        </span>
+                        {entry.metricType && (
+                          <span className="rounded-[999px] bg-[#F7F8F6] px-2 py-0.5 text-[0.6875rem] text-[#5C7A6A]">
+                            {METRIC_FILTERS.find((item) => item.key === entry.metricType)?.label}
+                          </span>
+                        )}
+                        {entry.status && (
+                          <span className="rounded-[999px] bg-[#F7F8F6] px-2 py-0.5 text-[0.6875rem] text-[#5C7A6A]">
+                            {entry.status}
+                          </span>
+                        )}
                       </div>
-                      {log.oldValue && log.newValue && (
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[0.75rem] line-through text-[#C0392B] font-mono">{log.oldValue}</span>
-                          <span className="text-[0.75rem] text-[#5C7A6A]">→</span>
-                          <span className="text-[0.75rem] text-[#27AE60] font-bold font-mono">{log.newValue}</span>
+
+                      <p className="text-[0.875rem] font-medium text-[#1A2E1F]">{entry.title}</p>
+                      <p className="mt-1 text-[0.8125rem] text-[#5C7A6A]">{entry.description}</p>
+
+                      <div className="mt-2 flex flex-wrap items-center gap-3 text-[0.75rem] text-[#5C7A6A]">
+                        {entry.farmName && <span>{entry.farmName}</span>}
+                        {entry.gardenName && <span>• {entry.gardenName}</span>}
+                        {entry.deviceName && <span>• {entry.deviceName}</span>}
+                        {entry.actorName && <span>• {entry.actorName}</span>}
+                        {typeof entry.value === "number" && <span>• {entry.value}{entry.unit ? ` ${entry.unit}` : ""}</span>}
+                      </div>
+
+                      {(entry.before || entry.after) && (
+                        <div className="mt-2 grid gap-1 text-[0.75rem]">
+                          {entry.before && <div className="rounded-[8px] bg-[#F7F8F6] px-2 py-1 text-[#5C7A6A]">Trước: {entry.before}</div>}
+                          {entry.after && <div className="rounded-[8px] bg-[#F0FAF3] px-2 py-1 text-[#1B4332]">Sau: {entry.after}</div>}
                         </div>
                       )}
                     </div>
 
                     <div className="text-right flex-shrink-0">
-                      <p className="text-[0.6875rem] text-[#5C7A6A]">{timeAgo(log.timestamp)}</p>
-                      <p className="text-[0.625rem] text-[#5C7A6A]/60 mt-0.5">{formatDateTime(log.timestamp)}</p>
+                      <p className="text-[0.6875rem] text-[#5C7A6A]">{timeAgo(entry.timestamp)}</p>
+                      <p className="text-[0.625rem] text-[#5C7A6A]/60 mt-0.5">{formatDateTime(entry.timestamp)}</p>
                     </div>
                   </div>
                 );
