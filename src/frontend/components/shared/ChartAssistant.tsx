@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BookOpenText, BrainCircuit, Square, Volume2, X } from "lucide-react";
 import { cn } from "@/frontend/utils/utils";
@@ -53,9 +54,15 @@ export function ChartAssistant({ chartTitle, theoryText, analysisText }: ChartAs
         aria-label={`Trợ lý biểu đồ ${chartTitle}`}
         title="Nhấn để xem gợi ý phân tích"
         onClick={() => setOpen((current) => !current)}
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-[#D7E2DB] bg-white text-[#1B4332] shadow-sm transition hover:border-[#1B4332] hover:bg-[#F0FAF3]"
+        className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-[#D7E2DB] bg-white shadow-sm transition hover:border-[#1B4332] hover:bg-[#F0FAF3]"
       >
-        <BrainCircuit size={16} className="transition group-hover:scale-105" />
+        <Image
+          src="/mushealy-logo.png"
+          alt="Mushealy assistant"
+          width={28}
+          height={28}
+          className="transition group-hover:scale-105"
+        />
       </button>
 
       {!open ? (
