@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
-  BarChart,
   CartesianGrid,
   Cell,
   ComposedChart,
@@ -28,7 +27,6 @@ import { cn } from "@/frontend/utils/utils";
 import type { Alert, ChartDataPoint, Garden, GardenSensorSummary, Schedule } from "@/types";
 
 type DashboardRange = "1h" | "24h" | "72h" | "1w" | "1m";
-type ComparisonMetric = "temperature" | "humiditySoil" | "light";
 type CorrelationPair = "temp-soil" | "temp-light" | "soil-light";
 
 type DashboardPayload = {
@@ -47,9 +45,15 @@ type DashboardPayload = {
 type CorrelationPoint = {
   x: number;
   y: number;
-  name: string;
-  color: string;
   time: string;
+};
+
+type GardenSeriesPoint = {
+  time: string;
+  temperature?: number;
+  humiditySoil?: number;
+  humidityAir?: number;
+  light?: number;
 };
 
 const RANGE_OPTIONS: Array<{ key: DashboardRange; label: string; hours: number }> = [
@@ -82,8 +86,14 @@ function toWindowStart(hours: number) {
   return Date.now() - hours * 60 * 60 * 1000;
 }
 
-function isFiniteMetric(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value) && value > 0;
+function pickGardenValue(point: ChartDataPoint, index: number) {
+  const key = `garden${index + 1}` as "garden1" | "garden2" | "garden3";
+  const value = point[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function hasSeriesData(series: GardenSeriesPoint[], keys: Array<keyof GardenSeriesPoint>) {
+  return series.some((point) => keys.some((key) => typeof point[key] === "number"));
 }
 
 export default function ReportsPage() {
@@ -99,8 +109,8 @@ export default function ReportsPage() {
   const selectedFarm = visibleFarms.find((farm) => farm.id === currentFarmId) ?? visibleFarms[0] ?? null;
 
   const [range, setRange] = useState<DashboardRange>("24h");
-  const [comparisonMetric, setComparisonMetric] = useState<ComparisonMetric>("temperature");
   const [correlationPair, setCorrelationPair] = useState<CorrelationPair>("temp-soil");
+  const [selectedGardenId, setSelectedGardenId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [payload, setPayload] = useState<DashboardPayload>(EMPTY_PAYLOAD);
@@ -127,16 +137,16 @@ export default function ReportsPage() {
         }
 
         const gardens = (await gardensResponse.json()) as Garden[];
-        const visibleGardens = gardens.slice(0, 3);
+        const chartGardens = gardens.slice(0, 3);
         const chartParams = new URLSearchParams();
         chartParams.set("hours", String(selectedRange.hours));
-        visibleGardens.forEach((garden) => chartParams.append("gardenId", garden.id));
+        chartGardens.forEach((garden) => chartParams.append("gardenId", garden.id));
 
         const [sensorResponse, alertResponse, scheduleResponse, chartResponse] = await Promise.all([
           fetch("/api/sensors", { cache: "no-store" }),
           fetch("/api/alerts", { cache: "no-store" }),
           fetch("/api/schedules", { cache: "no-store" }),
-          visibleGardens.length
+          chartGardens.length
             ? fetch(`/api/sensors/chart?${chartParams.toString()}`, { cache: "no-store" })
             : Promise.resolve(new Response(JSON.stringify(EMPTY_PAYLOAD.chartData), { status: 200 })),
         ]);
@@ -160,10 +170,7 @@ export default function ReportsPage() {
         setPayload({
           gardens,
           sensorSummaries: sensorSummaries.filter((summary) => gardenIds.has(summary.gardenId)),
-          alerts: alerts.filter((alert) => {
-            if (!gardenIds.has(alert.gardenId)) return false;
-            return new Date(alert.detectedAt).getTime() >= windowStart;
-          }),
+          alerts: alerts.filter((alert) => gardenIds.has(alert.gardenId) && new Date(alert.detectedAt).getTime() >= windowStart),
           schedules: schedules.filter((schedule) => gardenIds.has(schedule.gardenId)),
           chartData,
         });
@@ -188,46 +195,77 @@ export default function ReportsPage() {
     };
   }, [selectedFarm, selectedRange.hours]);
 
+  useEffect(() => {
+    if (!payload.gardens.length) {
+      setSelectedGardenId("");
+      return;
+    }
+    const stillExists = payload.gardens.some((garden) => garden.id === selectedGardenId);
+    if (!stillExists) {
+      setSelectedGardenId(payload.gardens[0].id);
+    }
+  }, [payload.gardens, selectedGardenId]);
+
+  const selectedGarden = payload.gardens.find((garden) => garden.id === selectedGardenId) ?? payload.gardens[0] ?? null;
+  const selectedSummary = payload.sensorSummaries.find((summary) => summary.gardenId === selectedGarden?.id) ?? null;
+  const selectedAlerts = payload.alerts.filter((alert) => alert.gardenId === selectedGarden?.id);
+  const selectedSchedules = payload.schedules.filter((schedule) => schedule.gardenId === selectedGarden?.id);
   const chartGardens = payload.gardens.slice(0, 3);
+  const selectedGardenChartIndex = chartGardens.findIndex((garden) => garden.id === selectedGarden?.id);
 
-  const mapSeriesByFarm = (data: ChartDataPoint[]) =>
-    data.map((point) => {
-      const row: Record<string, string | number> = { time: point.time };
-      chartGardens.forEach((garden, index) => {
-        const sourceKey = `garden${index + 1}` as "garden1" | "garden2" | "garden3";
-        row[garden.id] = Number(point[sourceKey] ?? 0);
-      });
-      return row;
-    });
+  const gardenSeries = useMemo<GardenSeriesPoint[]>(() => {
+    if (!selectedGarden || selectedGardenChartIndex < 0) return [];
 
-  const temperatureSeries = mapSeriesByFarm(payload.chartData.temperatureChartData);
-  const humiditySoilSeries = mapSeriesByFarm(payload.chartData.humiditySoilChartData);
-  const lightSeries = mapSeriesByFarm(payload.chartData.lightChartData);
+    const timeMap = new Map<string, GardenSeriesPoint>();
+    const seriesConfigs = [
+      { source: payload.chartData.temperatureChartData, field: "temperature" as const },
+      { source: payload.chartData.humidityAirChartData, field: "humidityAir" as const },
+      { source: payload.chartData.humiditySoilChartData, field: "humiditySoil" as const },
+      { source: payload.chartData.lightChartData, field: "light" as const },
+    ];
 
-  const combinedTrendData = temperatureSeries.map((point, index) => {
-    const humidityPoint = humiditySoilSeries[index] ?? {};
-    const lightPoint = lightSeries[index] ?? {};
-    const valuesTemp = chartGardens.map((garden) => Number(point[garden.id] ?? 0)).filter((value) => value > 0);
-    const valuesHumidity = chartGardens.map((garden) => Number(humidityPoint[garden.id] ?? 0)).filter((value) => value > 0);
-    const valuesLight = chartGardens.map((garden) => Number(lightPoint[garden.id] ?? 0)).filter((value) => value > 0);
+    for (const config of seriesConfigs) {
+      for (const point of config.source) {
+        const value = pickGardenValue(point, selectedGardenChartIndex);
+        if (typeof value !== "number") continue;
+        const existing = timeMap.get(point.time) ?? { time: point.time };
+        existing[config.field] = value;
+        timeMap.set(point.time, existing);
+      }
+    }
 
-    return {
-      time: String(point.time),
-      avgTemp: Number(averageOf(valuesTemp).toFixed(2)),
-      avgHumidity: Number(averageOf(valuesHumidity).toFixed(2)),
-      avgLight: Number((averageOf(valuesLight) / 1000).toFixed(2)),
-    };
+    return Array.from(timeMap.values()).sort((a, b) => a.time.localeCompare(b.time));
+  }, [payload.chartData, selectedGarden, selectedGardenChartIndex]);
+
+  const combinedTrendData = gardenSeries.map((point) => ({
+    time: point.time,
+    temperature: point.temperature ?? null,
+    humiditySoil: point.humiditySoil ?? null,
+    humidityAir: point.humidityAir ?? null,
+    light: typeof point.light === "number" ? Number((point.light / 1000).toFixed(2)) : null,
+  }));
+
+  const correlationData: CorrelationPoint[] = gardenSeries.flatMap((point) => {
+    if (correlationPair === "temp-light") {
+      if (typeof point.temperature !== "number" || typeof point.light !== "number") return [];
+      return [{ x: point.temperature, y: Number((point.light / 1000).toFixed(2)), time: point.time }];
+    }
+    if (correlationPair === "soil-light") {
+      if (typeof point.humiditySoil !== "number" || typeof point.light !== "number") return [];
+      return [{ x: point.humiditySoil, y: Number((point.light / 1000).toFixed(2)), time: point.time }];
+    }
+    if (typeof point.temperature !== "number" || typeof point.humiditySoil !== "number") return [];
+    return [{ x: point.temperature, y: point.humiditySoil, time: point.time }];
   });
 
-  const summaries = payload.gardens
-    .map((garden) => payload.sensorSummaries.find((summary) => summary.gardenId === garden.id) ?? null)
-    .filter((summary): summary is GardenSensorSummary => summary !== null);
+  const hasLineData = hasSeriesData(gardenSeries, ["temperature"]);
+  const hasComboData = hasSeriesData(gardenSeries, ["temperature", "humiditySoil", "light"]);
 
-  const avgTemperature = averageOf(summaries.map((summary) => summary.temperature));
-  const avgSoilHumidity = averageOf(summaries.map((summary) => summary.humiditySoil));
-  const avgLight = averageOf(summaries.map((summary) => summary.light));
+  const avgTemperature = selectedSummary?.temperature ?? averageOf(gardenSeries.map((point) => point.temperature).filter((value): value is number => typeof value === "number"));
+  const avgSoilHumidity = selectedSummary?.humiditySoil ?? averageOf(gardenSeries.map((point) => point.humiditySoil).filter((value): value is number => typeof value === "number"));
+  const avgLight = selectedSummary?.light ?? averageOf(gardenSeries.map((point) => point.light).filter((value): value is number => typeof value === "number"));
   const estimatedPumpHours =
-    (payload.schedules.reduce((sum, schedule) => {
+    (selectedSchedules.reduce((sum, schedule) => {
       if (schedule.action !== "ON") return sum;
       if (schedule.timeConfig?.durationMin) return sum + schedule.timeConfig.durationMin;
       if (schedule.thresholdConfig?.durationMin) return sum + schedule.thresholdConfig.durationMin;
@@ -235,63 +273,18 @@ export default function ReportsPage() {
     }, 0) / 60) * Math.max(1, selectedRange.hours / 24);
 
   const statCards = [
-    { label: "Nhiệt độ TB", value: avgTemperature.toFixed(1), unit: "°C", icon: Thermometer, color: "#E67E22" },
-    { label: "Độ ẩm đất TB", value: avgSoilHumidity.toFixed(1), unit: "%", icon: Droplets, color: "#2980B9" },
-    { label: "Ánh sáng TB", value: (avgLight / 1000).toFixed(1), unit: "k lux", icon: SunMedium, color: "#F39C12" },
+    { label: "Nhiệt độ", value: avgTemperature.toFixed(1), unit: "°C", icon: Thermometer, color: "#E67E22" },
+    { label: "Độ ẩm đất", value: avgSoilHumidity.toFixed(1), unit: "%", icon: Droplets, color: "#2980B9" },
+    { label: "Ánh sáng", value: (avgLight / 1000).toFixed(1), unit: "k lux", icon: SunMedium, color: "#F39C12" },
     { label: "Giờ bơm ước tính", value: estimatedPumpHours.toFixed(1), unit: "h", icon: Clock3, color: "#1B4332" },
   ];
 
-  const comparisonRows = payload.gardens
-    .map((garden) => {
-      const summary = payload.sensorSummaries.find((item) => item.gardenId === garden.id);
-      if (!summary) return null;
-      return {
-        id: garden.id,
-        label: garden.plantLabel,
-        color: garden.color,
-        temperature: summary.temperature,
-        humiditySoil: summary.humiditySoil,
-        light: Number((summary.light / 1000).toFixed(2)),
-      };
-    })
-    .filter((item): item is NonNullable<typeof item> => item !== null);
-
-  const comparisonChartData = comparisonRows.map((row) => ({
-    name: row.label,
-    value: row[comparisonMetric],
-    color: row.color,
-  }));
-
   const alertTypeData = [
-    { name: "Nhiệt độ", value: payload.alerts.filter((alert) => alert.sensorType === "temperature").length, color: "#C0392B" },
-    { name: "Độ ẩm", value: payload.alerts.filter((alert) => alert.sensorType === "humidity_air" || alert.sensorType === "humidity_soil").length, color: "#2980B9" },
-    { name: "Ánh sáng", value: payload.alerts.filter((alert) => alert.sensorType === "light").length, color: "#F39C12" },
-    { name: "Thiết bị", value: payload.alerts.filter((alert) => !alert.sensorType).length, color: "#5C7A6A" },
+    { name: "Nhiệt độ", value: selectedAlerts.filter((alert) => alert.sensorType === "temperature").length, color: "#C0392B" },
+    { name: "Độ ẩm", value: selectedAlerts.filter((alert) => alert.sensorType === "humidity_air" || alert.sensorType === "humidity_soil").length, color: "#2980B9" },
+    { name: "Ánh sáng", value: selectedAlerts.filter((alert) => alert.sensorType === "light").length, color: "#F39C12" },
+    { name: "Thiết bị", value: selectedAlerts.filter((alert) => !alert.sensorType).length, color: "#5C7A6A" },
   ].filter((entry) => entry.value > 0);
-
-  const correlationData: CorrelationPoint[] = temperatureSeries.flatMap((tempPoint, index) => {
-    const soilPoint = humiditySoilSeries[index] ?? {};
-    const lightPoint = lightSeries[index] ?? {};
-
-    return chartGardens.flatMap((garden) => {
-      const temperature = Number(tempPoint[garden.id] ?? NaN);
-      const humiditySoil = Number(soilPoint[garden.id] ?? NaN);
-      const light = Number(lightPoint[garden.id] ?? NaN);
-
-      if (correlationPair === "temp-light") {
-        if (!isFiniteMetric(temperature) || !isFiniteMetric(light)) return [];
-        return [{ x: temperature, y: Number((light / 1000).toFixed(2)), name: garden.plantLabel, color: garden.color, time: String(tempPoint.time) }];
-      }
-
-      if (correlationPair === "soil-light") {
-        if (!isFiniteMetric(humiditySoil) || !isFiniteMetric(light)) return [];
-        return [{ x: humiditySoil, y: Number((light / 1000).toFixed(2)), name: garden.plantLabel, color: garden.color, time: String(tempPoint.time) }];
-      }
-
-      if (!isFiniteMetric(temperature) || !isFiniteMetric(humiditySoil)) return [];
-      return [{ x: temperature, y: humiditySoil, name: garden.plantLabel, color: garden.color, time: String(tempPoint.time) }];
-    });
-  });
 
   if (!selectedFarm) {
     return (
@@ -347,8 +340,22 @@ export default function ReportsPage() {
             ))}
           </div>
 
-          <div className="rounded-[8px] border border-[#E2E8E4] bg-white px-3 py-2 text-[0.8125rem] text-[#5C7A6A]">
-            Cập nhật dữ liệu mỗi 10 giây từ database
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              className="rounded-[8px] border border-[#E2E8E4] bg-white px-3 py-2 text-[0.8125rem] text-[#1A2E1F]"
+              value={selectedGarden?.id ?? ""}
+              onChange={(event) => setSelectedGardenId(event.target.value)}
+            >
+              {payload.gardens.map((garden) => (
+                <option key={garden.id} value={garden.id}>
+                  {garden.name} - {garden.plantLabel}
+                </option>
+              ))}
+            </select>
+
+            <div className="rounded-[8px] border border-[#E2E8E4] bg-white px-3 py-2 text-[0.8125rem] text-[#5C7A6A]">
+              Cập nhật dữ liệu mỗi 10 giây từ database
+            </div>
           </div>
         </div>
 
@@ -360,7 +367,7 @@ export default function ReportsPage() {
           </div>
         )}
 
-        {!loading && !error && (
+        {!loading && !error && selectedGarden && (
           <>
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               {statCards.map((card) => {
@@ -385,92 +392,70 @@ export default function ReportsPage() {
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               <div className="card p-5">
                 <div className="mb-4 flex items-center justify-between gap-3">
-                  <h3 className="text-[0.9375rem] font-semibold text-[#1A2E1F]">Biểu đồ xu hướng nhiệt độ</h3>
+                  <h3 className="text-[0.9375rem] font-semibold text-[#1A2E1F]">Xu hướng nhiệt độ của {selectedGarden.name}</h3>
                   <span className="text-[0.75rem] text-[#5C7A6A]">{selectedRange.label}</span>
                 </div>
                 <div className="h-[260px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={temperatureSeries}>
-                      <CartesianGrid stroke="#E2E8E4" strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="time" tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
-                      <YAxis tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
-                      <Tooltip />
-                      <Legend />
-                      {chartGardens.map((garden) => (
+                  {!hasLineData ? (
+                    <div className="flex h-full items-center justify-center rounded-[10px] border border-dashed border-[#D7E2DB] bg-[#F7F8F6] px-6 text-center text-[0.875rem] text-[#5C7A6A]">
+                      Không có dữ liệu cảm biến trong khoảng thời gian này.
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={gardenSeries}>
+                        <CartesianGrid stroke="#E2E8E4" strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="time" tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
+                        <YAxis tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
+                        <Tooltip />
                         <Line
-                          key={garden.id}
                           type={isShortRange ? "stepAfter" : "monotone"}
-                          dataKey={garden.id}
-                          stroke={garden.color}
+                          dataKey="temperature"
+                          stroke={selectedGarden.color}
                           strokeWidth={2}
                           dot={isShortRange ? { r: 2 } : false}
                           activeDot={{ r: 4 }}
-                          name={garden.plantLabel}
+                          name={`${selectedGarden.plantLabel} (°C)`}
                           connectNulls
                         />
-                      ))}
-                    </LineChart>
-                  </ResponsiveContainer>
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
                 </div>
               </div>
 
               <div className="card p-5">
                 <div className="mb-4 flex items-center justify-between gap-3">
-                  <h3 className="text-[0.9375rem] font-semibold text-[#1A2E1F]">Biểu đồ kết hợp nhiệt độ - độ ẩm - ánh sáng</h3>
+                  <h3 className="text-[0.9375rem] font-semibold text-[#1A2E1F]">Nhiệt độ - độ ẩm - ánh sáng theo {selectedGarden.name}</h3>
                   <span className="text-[0.75rem] text-[#5C7A6A]">Combo chart</span>
                 </div>
                 <div className="h-[260px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={combinedTrendData}>
-                      <CartesianGrid stroke="#E2E8E4" strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="time" tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
-                      <YAxis yAxisId="left" tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
-                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
-                      <Tooltip />
-                      <Legend />
-                      <Bar yAxisId="left" dataKey="avgHumidity" fill="#2980B9" name="Độ ẩm đất TB (%)" radius={[4, 4, 0, 0]} />
-                      <Line yAxisId="left" type="monotone" dataKey="avgTemp" stroke="#E67E22" strokeWidth={2} dot={false} name="Nhiệt độ TB (°C)" />
-                      <Line yAxisId="right" type="monotone" dataKey="avgLight" stroke="#F39C12" strokeWidth={2} dot={false} name="Ánh sáng TB (k lux)" />
-                    </ComposedChart>
-                  </ResponsiveContainer>
+                  {!hasComboData ? (
+                    <div className="flex h-full items-center justify-center rounded-[10px] border border-dashed border-[#D7E2DB] bg-[#F7F8F6] px-6 text-center text-[0.875rem] text-[#5C7A6A]">
+                      Không có đủ dữ liệu để vẽ biểu đồ kết hợp.
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={combinedTrendData}>
+                        <CartesianGrid stroke="#E2E8E4" strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="time" tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
+                        <YAxis yAxisId="left" tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
+                        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
+                        <Tooltip />
+                        <Legend />
+                        <Bar yAxisId="left" dataKey="humiditySoil" fill="#2980B9" name="Độ ẩm đất (%)" radius={[4, 4, 0, 0]} />
+                        <Line yAxisId="left" type="monotone" dataKey="temperature" stroke="#E67E22" strokeWidth={2} dot={false} name="Nhiệt độ (°C)" />
+                        <Line yAxisId="right" type="monotone" dataKey="light" stroke="#F39C12" strokeWidth={2} dot={false} name="Ánh sáng (k lux)" />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  )}
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
               <div className="card p-5">
                 <div className="mb-4 flex items-center justify-between gap-3">
-                  <h3 className="text-[0.9375rem] font-semibold text-[#1A2E1F]">So sánh chỉ số giữa các khu vườn</h3>
-                  <select
-                    className="rounded-[8px] border border-[#E2E8E4] bg-white px-3 py-2 text-[0.75rem] text-[#1A2E1F]"
-                    value={comparisonMetric}
-                    onChange={(event) => setComparisonMetric(event.target.value as ComparisonMetric)}
-                  >
-                    <option value="temperature">Nhiệt độ</option>
-                    <option value="humiditySoil">Độ ẩm đất</option>
-                    <option value="light">Ánh sáng</option>
-                  </select>
-                </div>
-                <div className="h-[260px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={comparisonChartData}>
-                      <CartesianGrid stroke="#E2E8E4" strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
-                      <YAxis tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
-                      <Tooltip />
-                      <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                        {comparisonChartData.map((entry) => (
-                          <Cell key={entry.name} fill={entry.color} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              <div className="card p-5">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <h3 className="text-[0.9375rem] font-semibold text-[#1A2E1F]">Tương quan giữa các chỉ số</h3>
+                  <h3 className="text-[0.9375rem] font-semibold text-[#1A2E1F]">Tương quan chỉ số của {selectedGarden.name}</h3>
                   <select
                     className="rounded-[8px] border border-[#E2E8E4] bg-white px-3 py-2 text-[0.75rem] text-[#1A2E1F]"
                     value={correlationPair}
@@ -490,19 +475,19 @@ export default function ReportsPage() {
                     <ResponsiveContainer width="100%" height="100%">
                       <ScatterChart>
                         <CartesianGrid stroke="#E2E8E4" strokeDasharray="3 3" />
-                        <XAxis dataKey="x" name="Trục X" tick={{ fontSize: 10, fill: "#5C7A6A" }} />
-                        <YAxis dataKey="y" name="Trục Y" tick={{ fontSize: 10, fill: "#5C7A6A" }} />
+                        <XAxis dataKey="x" tick={{ fontSize: 10, fill: "#5C7A6A" }} />
+                        <YAxis dataKey="y" tick={{ fontSize: 10, fill: "#5C7A6A" }} />
                         <Tooltip
                           cursor={{ strokeDasharray: "3 3" }}
                           formatter={(value) => (typeof value === "number" ? value.toFixed(2) : String(value ?? ""))}
                           labelFormatter={(_, points) => {
                             const point = points?.[0]?.payload as CorrelationPoint | undefined;
-                            return point ? `${point.name} • ${point.time}` : "";
+                            return point ? `${selectedGarden.plantLabel} • ${point.time}` : "";
                           }}
                         />
-                        <Scatter data={correlationData} fill="#1B4332">
-                          {correlationData.map((entry, index) => (
-                            <Cell key={`${entry.name}-${entry.time}-${index}`} fill={entry.color} />
+                        <Scatter data={correlationData} fill={selectedGarden.color}>
+                          {correlationData.map((point, index) => (
+                            <Cell key={`${point.time}-${index}`} fill={selectedGarden.color} />
                           ))}
                         </Scatter>
                       </ScatterChart>
@@ -510,42 +495,9 @@ export default function ReportsPage() {
                   )}
                 </div>
               </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.3fr_0.9fr]">
-              <div className="card p-5">
-                <h3 className="mb-4 text-[0.9375rem] font-semibold text-[#1A2E1F]">Bảng so sánh nhanh khu vườn</h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="border-b border-[#E2E8E4] bg-[#F7F8F6]">
-                      <tr>
-                        <th className="px-5 py-3 text-left text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A]">Khu vườn</th>
-                        <th className="px-5 py-3 text-left text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A]">Nhiệt độ</th>
-                        <th className="px-5 py-3 text-left text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A]">Độ ẩm đất</th>
-                        <th className="px-5 py-3 text-left text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A]">Ánh sáng</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#E2E8E4]">
-                      {comparisonRows.map((row) => (
-                        <tr key={row.id} className="hover:bg-[#F7F8F6]">
-                          <td className="px-5 py-3">
-                            <div className="flex items-center gap-2">
-                              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: row.color }} />
-                              <span className="text-[0.875rem] font-medium text-[#1A2E1F]">{row.label}</span>
-                            </div>
-                          </td>
-                          <td className="px-5 py-3 font-mono-data font-bold text-[#1A2E1F]">{row.temperature}°C</td>
-                          <td className="px-5 py-3 font-mono-data font-bold text-[#1A2E1F]">{row.humiditySoil}%</td>
-                          <td className="px-5 py-3 font-mono-data font-bold text-[#1A2E1F]">{row.light}k lux</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
 
               <div className="card p-5">
-                <h3 className="mb-4 text-[0.9375rem] font-semibold text-[#1A2E1F]">Cơ cấu cảnh báo</h3>
+                <h3 className="mb-4 text-[0.9375rem] font-semibold text-[#1A2E1F]">Cơ cấu cảnh báo của {selectedGarden.name}</h3>
                 <div className="flex items-center gap-4">
                   <div className="h-[220px] flex-1">
                     <ResponsiveContainer width="100%" height="100%">
@@ -580,23 +532,26 @@ export default function ReportsPage() {
               <div className="card p-5">
                 <div className="mb-2 flex items-center gap-2">
                   <Leaf size={16} className="text-[#1B4332]" />
-                  <h3 className="text-[0.9375rem] font-semibold text-[#1A2E1F]">Khu vườn theo dõi</h3>
+                  <h3 className="text-[0.9375rem] font-semibold text-[#1A2E1F]">Khu vườn đang xem</h3>
                 </div>
-                <p className="text-[1.875rem] font-bold text-[#1A2E1F]">{payload.gardens.length}</p>
+                <p className="text-[1.125rem] font-bold text-[#1A2E1F]">{selectedGarden.name}</p>
+                <p className="mt-1 text-[0.8125rem] text-[#5C7A6A]">{selectedGarden.plantLabel}</p>
               </div>
+
               <div className="card p-5">
                 <div className="mb-2 flex items-center gap-2">
                   <AlertTriangle size={16} className="text-[#C0392B]" />
                   <h3 className="text-[0.9375rem] font-semibold text-[#1A2E1F]">Cảnh báo trong kỳ</h3>
                 </div>
-                <p className="text-[1.875rem] font-bold text-[#1A2E1F]">{payload.alerts.length}</p>
+                <p className="text-[1.875rem] font-bold text-[#1A2E1F]">{selectedAlerts.length}</p>
               </div>
+
               <div className="card p-5">
                 <div className="mb-2 flex items-center gap-2">
                   <Clock3 size={16} className="text-[#2980B9]" />
-                  <h3 className="text-[0.9375rem] font-semibold text-[#1A2E1F]">Lịch tưới đang áp dụng</h3>
+                  <h3 className="text-[0.9375rem] font-semibold text-[#1A2E1F]">Lịch tưới áp dụng</h3>
                 </div>
-                <p className="text-[1.875rem] font-bold text-[#1A2E1F]">{payload.schedules.length}</p>
+                <p className="text-[1.875rem] font-bold text-[#1A2E1F]">{selectedSchedules.length}</p>
               </div>
             </div>
           </>
