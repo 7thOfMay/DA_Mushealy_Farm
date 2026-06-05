@@ -22,12 +22,14 @@ import { AlertTriangle, Clock3, Droplets, Leaf, SunMedium, Thermometer } from "l
 import { Topbar } from "@/frontend/components/layout/Topbar";
 import { ErrorState } from "@/frontend/components/shared/ErrorStates";
 import { useAppStore } from "@/frontend/context/store";
+import { apiGetThresholds } from "@/frontend/services/client";
 import { getManagedFarmers, getVisibleFarmsForViewer } from "@/frontend/utils/dataScope";
 import { cn } from "@/frontend/utils/utils";
-import type { Alert, ChartDataPoint, Garden, GardenSensorSummary, Schedule } from "@/types";
+import type { Alert, ChartDataPoint, Garden, GardenSensorSummary, Schedule, ZoneThresholds } from "@/types";
 
 type DashboardRange = "1h" | "24h" | "72h" | "1w" | "1m";
 type CorrelationPair = "temp-soil" | "temp-light" | "soil-light";
+type DistributionMetric = "temperature" | "humidityAir" | "humiditySoil" | "light";
 
 type DashboardPayload = {
   gardens: Garden[];
@@ -96,6 +98,39 @@ function hasSeriesData(series: GardenSeriesPoint[], keys: Array<keyof GardenSeri
   return series.some((point) => keys.some((key) => typeof point[key] === "number"));
 }
 
+function classifyDistribution(
+  series: GardenSeriesPoint[],
+  metric: DistributionMetric,
+  thresholds: ZoneThresholds | null,
+) {
+  if (!thresholds) return [];
+
+  const threshold =
+    metric === "temperature"
+      ? thresholds.temperature
+      : metric === "humidityAir"
+        ? thresholds.humidityAir
+        : metric === "humiditySoil"
+          ? thresholds.humiditySoil
+          : thresholds.light;
+
+  const counts = { low: 0, optimal: 0, high: 0 };
+
+  for (const point of series) {
+    const value = point[metric];
+    if (typeof value !== "number" || !Number.isFinite(value)) continue;
+    if (value < threshold.min) counts.low += 1;
+    else if (value > threshold.max) counts.high += 1;
+    else counts.optimal += 1;
+  }
+
+  return [
+    { name: "Thấp", value: counts.low, color: "#2980B9" },
+    { name: "Hợp lý", value: counts.optimal, color: "#1B4332" },
+    { name: "Cao", value: counts.high, color: "#C0392B" },
+  ].filter((item) => item.value > 0);
+}
+
 export default function ReportsPage() {
   const farms = useAppStore((state) => state.farms);
   const users = useAppStore((state) => state.users);
@@ -110,10 +145,12 @@ export default function ReportsPage() {
 
   const [range, setRange] = useState<DashboardRange>("24h");
   const [correlationPair, setCorrelationPair] = useState<CorrelationPair>("temp-soil");
+  const [distributionMetric, setDistributionMetric] = useState<DistributionMetric>("temperature");
   const [selectedGardenId, setSelectedGardenId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [payload, setPayload] = useState<DashboardPayload>(EMPTY_PAYLOAD);
+  const [thresholds, setThresholds] = useState<ZoneThresholds[]>([]);
 
   const selectedRange = RANGE_OPTIONS.find((option) => option.key === range) ?? RANGE_OPTIONS[1];
   const isShortRange = range === "1h";
@@ -121,6 +158,7 @@ export default function ReportsPage() {
   useEffect(() => {
     if (!selectedFarm) {
       setPayload(EMPTY_PAYLOAD);
+      setThresholds([]);
       setLoading(false);
       return;
     }
@@ -142,13 +180,14 @@ export default function ReportsPage() {
         chartParams.set("hours", String(selectedRange.hours));
         chartGardens.forEach((garden) => chartParams.append("gardenId", garden.id));
 
-        const [sensorResponse, alertResponse, scheduleResponse, chartResponse] = await Promise.all([
+        const [sensorResponse, alertResponse, scheduleResponse, chartResponse, thresholdRows] = await Promise.all([
           fetch("/api/sensors", { cache: "no-store" }),
           fetch("/api/alerts", { cache: "no-store" }),
           fetch("/api/schedules", { cache: "no-store" }),
           chartGardens.length
             ? fetch(`/api/sensors/chart?${chartParams.toString()}`, { cache: "no-store" })
             : Promise.resolve(new Response(JSON.stringify(EMPTY_PAYLOAD.chartData), { status: 200 })),
+          apiGetThresholds(),
         ]);
 
         if (!sensorResponse.ok || !alertResponse.ok || !scheduleResponse.ok || !chartResponse.ok) {
@@ -174,6 +213,7 @@ export default function ReportsPage() {
           schedules: schedules.filter((schedule) => gardenIds.has(schedule.gardenId)),
           chartData,
         });
+        setThresholds((thresholdRows ?? []).filter((item) => gardenIds.has(item.gardenId)));
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Không thể tải dashboard");
@@ -260,6 +300,25 @@ export default function ReportsPage() {
 
   const hasLineData = hasSeriesData(gardenSeries, ["temperature"]);
   const hasComboData = hasSeriesData(gardenSeries, ["temperature", "humiditySoil", "light"]);
+  const hasHumidityAirData = hasSeriesData(gardenSeries, ["humidityAir"]);
+  const hasHumiditySoilData = hasSeriesData(gardenSeries, ["humiditySoil"]);
+  const hasLightData = hasSeriesData(gardenSeries, ["light"]);
+
+  const selectedThreshold = thresholds.find((item) => item.gardenId === selectedGarden?.id) ?? null;
+  const distributionData = classifyDistribution(gardenSeries, distributionMetric, selectedThreshold);
+  const distributionLabels: Record<DistributionMetric, string> = {
+    temperature: "Nhiệt độ",
+    humidityAir: "Độ ẩm không khí",
+    humiditySoil: "Độ ẩm đất",
+    light: "Ánh sáng",
+  };
+
+  const humidityAirTrendData = gardenSeries.map((point) => ({ time: point.time, value: point.humidityAir ?? null }));
+  const humiditySoilTrendData = gardenSeries.map((point) => ({ time: point.time, value: point.humiditySoil ?? null }));
+  const lightTrendData = gardenSeries.map((point) => ({
+    time: point.time,
+    value: typeof point.light === "number" ? Number((point.light / 1000).toFixed(2)) : null,
+  }));
 
   const avgTemperature = selectedSummary?.temperature ?? averageOf(gardenSeries.map((point) => point.temperature).filter((value): value is number => typeof value === "number"));
   const avgSoilHumidity = selectedSummary?.humiditySoil ?? averageOf(gardenSeries.map((point) => point.humiditySoil).filter((value): value is number => typeof value === "number"));
@@ -448,6 +507,138 @@ export default function ReportsPage() {
                       </ComposedChart>
                     </ResponsiveContainer>
                   )}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 2xl:grid-cols-4 xl:grid-cols-2">
+              <div className="card p-5">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <h3 className="text-[0.9375rem] font-semibold text-[#1A2E1F]">Độ ẩm không khí của {selectedGarden.name}</h3>
+                  <span className="text-[0.75rem] text-[#5C7A6A]">%</span>
+                </div>
+                <div className="h-[220px]">
+                  {!hasHumidityAirData ? (
+                    <div className="flex h-full items-center justify-center rounded-[10px] border border-dashed border-[#D7E2DB] bg-[#F7F8F6] px-6 text-center text-[0.875rem] text-[#5C7A6A]">
+                      Không có dữ liệu độ ẩm không khí trong khoảng này.
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={humidityAirTrendData}>
+                        <CartesianGrid stroke="#E2E8E4" strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="time" tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
+                        <YAxis tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
+                        <Tooltip />
+                        <Line type={isShortRange ? "stepAfter" : "monotone"} dataKey="value" stroke="#2D9CDB" strokeWidth={2} dot={isShortRange ? { r: 2 } : false} connectNulls />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+
+              <div className="card p-5">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <h3 className="text-[0.9375rem] font-semibold text-[#1A2E1F]">Độ ẩm đất của {selectedGarden.name}</h3>
+                  <span className="text-[0.75rem] text-[#5C7A6A]">%</span>
+                </div>
+                <div className="h-[220px]">
+                  {!hasHumiditySoilData ? (
+                    <div className="flex h-full items-center justify-center rounded-[10px] border border-dashed border-[#D7E2DB] bg-[#F7F8F6] px-6 text-center text-[0.875rem] text-[#5C7A6A]">
+                      Không có dữ liệu độ ẩm đất trong khoảng này.
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={humiditySoilTrendData}>
+                        <CartesianGrid stroke="#E2E8E4" strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="time" tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
+                        <YAxis tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
+                        <Tooltip />
+                        <Line type={isShortRange ? "stepAfter" : "monotone"} dataKey="value" stroke="#2980B9" strokeWidth={2} dot={isShortRange ? { r: 2 } : false} connectNulls />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+
+              <div className="card p-5">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <h3 className="text-[0.9375rem] font-semibold text-[#1A2E1F]">Ánh sáng của {selectedGarden.name}</h3>
+                  <span className="text-[0.75rem] text-[#5C7A6A]">k lux</span>
+                </div>
+                <div className="h-[220px]">
+                  {!hasLightData ? (
+                    <div className="flex h-full items-center justify-center rounded-[10px] border border-dashed border-[#D7E2DB] bg-[#F7F8F6] px-6 text-center text-[0.875rem] text-[#5C7A6A]">
+                      Không có dữ liệu ánh sáng trong khoảng này.
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={lightTrendData}>
+                        <CartesianGrid stroke="#E2E8E4" strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="time" tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
+                        <YAxis tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
+                        <Tooltip />
+                        <Line type={isShortRange ? "stepAfter" : "monotone"} dataKey="value" stroke="#F39C12" strokeWidth={2} dot={isShortRange ? { r: 2 } : false} connectNulls />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+
+              <div className="card p-5">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <h3 className="text-[0.9375rem] font-semibold text-[#1A2E1F]">Phân loại ghi nhận theo ngưỡng</h3>
+                  <select
+                    className="rounded-[8px] border border-[#E2E8E4] bg-white px-3 py-2 text-[0.75rem] text-[#1A2E1F]"
+                    value={distributionMetric}
+                    onChange={(event) => setDistributionMetric(event.target.value as DistributionMetric)}
+                  >
+                    <option value="temperature">Nhiệt độ</option>
+                    <option value="humidityAir">Độ ẩm không khí</option>
+                    <option value="humiditySoil">Độ ẩm đất</option>
+                    <option value="light">Ánh sáng</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="h-[220px] flex-1">
+                    {!selectedThreshold || distributionData.length === 0 ? (
+                      <div className="flex h-full items-center justify-center rounded-[10px] border border-dashed border-[#D7E2DB] bg-[#F7F8F6] px-6 text-center text-[0.875rem] text-[#5C7A6A]">
+                        Chưa đủ dữ liệu hoặc chưa có ngưỡng để phân loại {distributionLabels[distributionMetric].toLowerCase()}.
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={distributionData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={72} innerRadius={40}>
+                            {distributionData.map((entry) => (
+                              <Cell key={entry.name} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    {selectedThreshold && (
+                      <div className="rounded-[8px] bg-[#F7F8F6] px-3 py-2 text-[0.75rem] text-[#5C7A6A]">
+                        Ngưỡng {distributionLabels[distributionMetric].toLowerCase()}:{" "}
+                        {distributionMetric === "temperature"
+                          ? `${selectedThreshold.temperature.min} - ${selectedThreshold.temperature.max} °C`
+                          : distributionMetric === "humidityAir"
+                            ? `${selectedThreshold.humidityAir.min} - ${selectedThreshold.humidityAir.max} %`
+                            : distributionMetric === "humiditySoil"
+                              ? `${selectedThreshold.humiditySoil.min} - ${selectedThreshold.humiditySoil.max} %`
+                              : `${selectedThreshold.light.min} - ${selectedThreshold.light.max} lux`}
+                      </div>
+                    )}
+                    {distributionData.map((entry) => (
+                      <div key={entry.name} className="flex items-center gap-2">
+                        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: entry.color }} />
+                        <span className="text-[0.8125rem] text-[#5C7A6A]">{entry.name}</span>
+                        <span className="ml-1 text-[0.8125rem] font-bold text-[#1A2E1F]">{entry.value}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Cpu, Filter, History, Search, Settings2, Waves } from "lucide-react";
+import { AlertTriangle, Cpu, Download, Filter, History, Search, Settings2, Waves } from "lucide-react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import { Topbar } from "@/frontend/components/layout/Topbar";
 import { EmptyState } from "@/frontend/components/shared";
@@ -130,6 +130,34 @@ function toGardenSeries(chartData: ChartResponse, selectedGarden: Garden, visibl
         : null;
     })
     .filter((item): item is { time: string; value: number } => item !== null);
+}
+
+async function exportJournalEntries(entries: JournalEntry[], startDate: string, endDate: string) {
+  const XLSX = await import("xlsx");
+  const rows = entries.map((entry) => ({
+    "Thời gian": formatDateTime(entry.timestamp),
+    "Loại bản ghi": ENTRY_STYLE[entry.kind].label,
+    "Tiêu đề": entry.title,
+    "Mô tả": entry.description,
+    "Nông trại": entry.farmName ?? "",
+    "Khu vườn": entry.gardenName ?? "",
+    "Thiết bị": entry.deviceName ?? "",
+    "Người thao tác": entry.actorName ?? "",
+    "Chỉ số": entry.metricType ? METRIC_FILTERS.find((item) => item.key === entry.metricType)?.label ?? entry.metricType : "",
+    "Giá trị": typeof entry.value === "number" ? entry.value : "",
+    "Đơn vị": entry.unit ?? "",
+    "Trạng thái": entry.status ?? "",
+    "Mức độ": entry.severity ?? "",
+    "Trước": entry.before ?? "",
+    "Sau": entry.after ?? "",
+  }));
+
+  const workbook = XLSX.utils.book_new();
+  const sheet = XLSX.utils.json_to_sheet(rows);
+  XLSX.utils.book_append_sheet(workbook, sheet, "Nhat ky");
+
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+  XLSX.writeFile(workbook, `nhat-ky_${startDate}_${endDate}_${stamp}.xlsx`);
 }
 
 export default function LogsPage() {
@@ -271,6 +299,11 @@ export default function LogsPage() {
   );
 
   const metricUnit = chartMetric === "temperature" ? "°C" : chartMetric === "light" ? "k lux" : "%";
+
+  const handleExport = async () => {
+    if (!journal.entries.length) return;
+    await exportJournalEntries(journal.entries, dateRange.start, dateRange.end);
+  };
 
   if (visibleFarms.length === 0) {
     return (
@@ -422,6 +455,22 @@ export default function LogsPage() {
                 {item.label}
               </button>
             ))}
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              onClick={() => void handleExport()}
+              disabled={loading || journal.entries.length === 0}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-[8px] border px-3 py-2 text-[0.8125rem] font-medium transition-colors",
+                loading || journal.entries.length === 0
+                  ? "cursor-not-allowed border-[#E2E8E4] bg-[#F7F8F6] text-[#9AA8A0]"
+                  : "border-[#1B4332] bg-[#1B4332] text-white hover:bg-[#163728]",
+              )}
+            >
+              <Download size={14} />
+              Xuất Excel theo bộ lọc hiện tại
+            </button>
           </div>
         </div>
 
