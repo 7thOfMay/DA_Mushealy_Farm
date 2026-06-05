@@ -44,6 +44,14 @@ type DashboardPayload = {
   };
 };
 
+type CorrelationPoint = {
+  x: number;
+  y: number;
+  name: string;
+  color: string;
+  time: string;
+};
+
 const RANGE_OPTIONS: Array<{ key: DashboardRange; label: string; hours: number }> = [
   { key: "1h", label: "1 giờ gần nhất", hours: 1 },
   { key: "24h", label: "24 giờ gần nhất", hours: 24 },
@@ -74,6 +82,10 @@ function toWindowStart(hours: number) {
   return Date.now() - hours * 60 * 60 * 1000;
 }
 
+function isFiniteMetric(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
 export default function ReportsPage() {
   const farms = useAppStore((state) => state.farms);
   const users = useAppStore((state) => state.users);
@@ -94,6 +106,7 @@ export default function ReportsPage() {
   const [payload, setPayload] = useState<DashboardPayload>(EMPTY_PAYLOAD);
 
   const selectedRange = RANGE_OPTIONS.find((option) => option.key === range) ?? RANGE_OPTIONS[1];
+  const isShortRange = range === "1h";
 
   useEffect(() => {
     if (!selectedFarm) {
@@ -107,6 +120,7 @@ export default function ReportsPage() {
     const loadDashboard = async () => {
       try {
         setError(null);
+
         const gardensResponse = await fetch(`/api/gardens?farmId=${selectedFarm.id}`, { cache: "no-store" });
         if (!gardensResponse.ok) {
           throw new Error("Không thể tải danh sách khu vườn");
@@ -142,6 +156,7 @@ export default function ReportsPage() {
 
         const gardenIds = new Set(gardens.map((garden) => garden.id));
         const windowStart = toWindowStart(selectedRange.hours);
+
         setPayload({
           gardens,
           sensorSummaries: sensorSummaries.filter((summary) => gardenIds.has(summary.gardenId)),
@@ -190,11 +205,12 @@ export default function ReportsPage() {
   const lightSeries = mapSeriesByFarm(payload.chartData.lightChartData);
 
   const combinedTrendData = temperatureSeries.map((point, index) => {
-    const valuesTemp = chartGardens.map((garden) => Number(point[garden.id] ?? 0)).filter((value) => value > 0);
     const humidityPoint = humiditySoilSeries[index] ?? {};
     const lightPoint = lightSeries[index] ?? {};
+    const valuesTemp = chartGardens.map((garden) => Number(point[garden.id] ?? 0)).filter((value) => value > 0);
     const valuesHumidity = chartGardens.map((garden) => Number(humidityPoint[garden.id] ?? 0)).filter((value) => value > 0);
     const valuesLight = chartGardens.map((garden) => Number(lightPoint[garden.id] ?? 0)).filter((value) => value > 0);
+
     return {
       time: String(point.time),
       avgTemp: Number(averageOf(valuesTemp).toFixed(2)),
@@ -210,12 +226,13 @@ export default function ReportsPage() {
   const avgTemperature = averageOf(summaries.map((summary) => summary.temperature));
   const avgSoilHumidity = averageOf(summaries.map((summary) => summary.humiditySoil));
   const avgLight = averageOf(summaries.map((summary) => summary.light));
-  const estimatedPumpHours = (payload.schedules.reduce((sum, schedule) => {
-    if (schedule.action !== "ON") return sum;
-    if (schedule.timeConfig?.durationMin) return sum + schedule.timeConfig.durationMin;
-    if (schedule.thresholdConfig?.durationMin) return sum + schedule.thresholdConfig.durationMin;
-    return sum + 30;
-  }, 0) / 60) * Math.max(1, selectedRange.hours / 24);
+  const estimatedPumpHours =
+    (payload.schedules.reduce((sum, schedule) => {
+      if (schedule.action !== "ON") return sum;
+      if (schedule.timeConfig?.durationMin) return sum + schedule.timeConfig.durationMin;
+      if (schedule.thresholdConfig?.durationMin) return sum + schedule.thresholdConfig.durationMin;
+      return sum + 30;
+    }, 0) / 60) * Math.max(1, selectedRange.hours / 24);
 
   const statCards = [
     { label: "Nhiệt độ TB", value: avgTemperature.toFixed(1), unit: "°C", icon: Thermometer, color: "#E67E22" },
@@ -252,14 +269,28 @@ export default function ReportsPage() {
     { name: "Thiết bị", value: payload.alerts.filter((alert) => !alert.sensorType).length, color: "#5C7A6A" },
   ].filter((entry) => entry.value > 0);
 
-  const correlationData = comparisonRows.map((row) => {
-    if (correlationPair === "temp-light") {
-      return { x: row.temperature, y: row.light, name: row.label, color: row.color };
-    }
-    if (correlationPair === "soil-light") {
-      return { x: row.humiditySoil, y: row.light, name: row.label, color: row.color };
-    }
-    return { x: row.temperature, y: row.humiditySoil, name: row.label, color: row.color };
+  const correlationData: CorrelationPoint[] = temperatureSeries.flatMap((tempPoint, index) => {
+    const soilPoint = humiditySoilSeries[index] ?? {};
+    const lightPoint = lightSeries[index] ?? {};
+
+    return chartGardens.flatMap((garden) => {
+      const temperature = Number(tempPoint[garden.id] ?? NaN);
+      const humiditySoil = Number(soilPoint[garden.id] ?? NaN);
+      const light = Number(lightPoint[garden.id] ?? NaN);
+
+      if (correlationPair === "temp-light") {
+        if (!isFiniteMetric(temperature) || !isFiniteMetric(light)) return [];
+        return [{ x: temperature, y: Number((light / 1000).toFixed(2)), name: garden.plantLabel, color: garden.color, time: String(tempPoint.time) }];
+      }
+
+      if (correlationPair === "soil-light") {
+        if (!isFiniteMetric(humiditySoil) || !isFiniteMetric(light)) return [];
+        return [{ x: humiditySoil, y: Number((light / 1000).toFixed(2)), name: garden.plantLabel, color: garden.color, time: String(tempPoint.time) }];
+      }
+
+      if (!isFiniteMetric(temperature) || !isFiniteMetric(humiditySoil)) return [];
+      return [{ x: temperature, y: humiditySoil, name: garden.plantLabel, color: garden.color, time: String(tempPoint.time) }];
+    });
   });
 
   if (!selectedFarm) {
@@ -321,11 +352,7 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {loading && (
-          <div className="card p-6 text-[0.875rem] text-[#5C7A6A]">
-            Đang tải dashboard từ database...
-          </div>
-        )}
+        {loading && <div className="card p-6 text-[0.875rem] text-[#5C7A6A]">Đang tải dashboard từ database...</div>}
 
         {error && (
           <div className="max-w-3xl">
@@ -370,7 +397,17 @@ export default function ReportsPage() {
                       <Tooltip />
                       <Legend />
                       {chartGardens.map((garden) => (
-                        <Line key={garden.id} type="monotone" dataKey={garden.id} stroke={garden.color} strokeWidth={2} dot={false} name={garden.plantLabel} />
+                        <Line
+                          key={garden.id}
+                          type={isShortRange ? "stepAfter" : "monotone"}
+                          dataKey={garden.id}
+                          stroke={garden.color}
+                          strokeWidth={2}
+                          dot={isShortRange ? { r: 2 } : false}
+                          activeDot={{ r: 4 }}
+                          name={garden.plantLabel}
+                          connectNulls
+                        />
                       ))}
                     </LineChart>
                   </ResponsiveContainer>
@@ -445,19 +482,32 @@ export default function ReportsPage() {
                   </select>
                 </div>
                 <div className="h-[260px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ScatterChart>
-                      <CartesianGrid stroke="#E2E8E4" strokeDasharray="3 3" />
-                      <XAxis dataKey="x" name="Trục X" tick={{ fontSize: 10, fill: "#5C7A6A" }} />
-                      <YAxis dataKey="y" name="Trục Y" tick={{ fontSize: 10, fill: "#5C7A6A" }} />
-                      <Tooltip cursor={{ strokeDasharray: "3 3" }} />
-                      <Scatter data={correlationData} fill="#1B4332">
-                        {correlationData.map((entry) => (
-                          <Cell key={entry.name} fill={entry.color} />
-                        ))}
-                      </Scatter>
-                    </ScatterChart>
-                  </ResponsiveContainer>
+                  {correlationData.length === 0 ? (
+                    <div className="flex h-full items-center justify-center rounded-[10px] border border-dashed border-[#D7E2DB] bg-[#F7F8F6] px-6 text-center text-[0.875rem] text-[#5C7A6A]">
+                      Chưa đủ dữ liệu tương quan trong khoảng thời gian này.
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ScatterChart>
+                        <CartesianGrid stroke="#E2E8E4" strokeDasharray="3 3" />
+                        <XAxis dataKey="x" name="Trục X" tick={{ fontSize: 10, fill: "#5C7A6A" }} />
+                        <YAxis dataKey="y" name="Trục Y" tick={{ fontSize: 10, fill: "#5C7A6A" }} />
+                        <Tooltip
+                          cursor={{ strokeDasharray: "3 3" }}
+                          formatter={(value) => (typeof value === "number" ? value.toFixed(2) : String(value ?? ""))}
+                          labelFormatter={(_, points) => {
+                            const point = points?.[0]?.payload as CorrelationPoint | undefined;
+                            return point ? `${point.name} • ${point.time}` : "";
+                          }}
+                        />
+                        <Scatter data={correlationData} fill="#1B4332">
+                          {correlationData.map((entry, index) => (
+                            <Cell key={`${entry.name}-${entry.time}-${index}`} fill={entry.color} />
+                          ))}
+                        </Scatter>
+                      </ScatterChart>
+                    </ResponsiveContainer>
+                  )}
                 </div>
               </div>
             </div>

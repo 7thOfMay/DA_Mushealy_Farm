@@ -12,25 +12,30 @@ const TYPE_MAP: Record<number, "temperature" | "humidityAir" | "humiditySoil" | 
   4: "light",
 };
 
-function getBucketHours(hours: number) {
-  if (hours <= 24) return 1;
-  if (hours <= 72) return 3;
-  if (hours <= 168) return 6;
-  return 24;
+function getBucketMinutes(hours: number) {
+  if (hours <= 1) return 10;
+  if (hours <= 24) return 60;
+  if (hours <= 72) return 180;
+  if (hours <= 168) return 360;
+  return 1440;
 }
 
-function formatBucketLabel(date: Date, bucketHours: number) {
-  if (bucketHours >= 24) {
+function formatBucketLabel(date: Date, bucketMinutes: number) {
+  if (bucketMinutes >= 1440) {
     return `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}`;
   }
-  return `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:00`;
+  if (bucketMinutes < 60) {
+    return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  }
+  return `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
-function floorToBucket(date: Date, bucketHours: number) {
+function floorToBucket(date: Date, bucketMinutes: number) {
   const next = new Date(date);
-  next.setMinutes(0, 0, 0);
-  const hour = next.getHours();
-  next.setHours(hour - (hour % bucketHours));
+  next.setSeconds(0, 0);
+  const totalMinutes = next.getHours() * 60 + next.getMinutes();
+  const flooredMinutes = totalMinutes - (totalMinutes % bucketMinutes);
+  next.setHours(Math.floor(flooredMinutes / 60), flooredMinutes % 60, 0, 0);
   return next;
 }
 
@@ -92,7 +97,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 
-  const bucketHours = getBucketHours(hours);
+  const bucketMinutes = getBucketMinutes(hours);
   const gardenIndex = new Map<number, string>();
   zoneIds.forEach((zoneId, index) => gardenIndex.set(zoneId, `garden${index + 1}`));
 
@@ -112,9 +117,9 @@ export async function GET(request: Request) {
     const gardenKey = gardenIndex.get(reading.zone_id);
     if (!gardenKey) continue;
 
-    const bucketDate = floorToBucket(new Date(reading.recorded_at), bucketHours);
+    const bucketDate = floorToBucket(new Date(reading.recorded_at), bucketMinutes);
     const bucketKey = `${sensorType}:${bucketDate.toISOString()}`;
-    const time = formatBucketLabel(bucketDate, bucketHours);
+    const time = formatBucketLabel(bucketDate, bucketMinutes);
     const bucket = buckets[sensorType];
 
     if (!bucket.has(bucketKey)) {
