@@ -9,11 +9,40 @@ type SensorDeviceRow = {
   device_type_id: number;
 };
 
+type SeedRequestBody = {
+  action?: "seed" | "cleanup";
+  timestamps?: string[];
+  startAt?: string;
+  count?: number;
+  intervalMinutes?: number;
+};
+
 const SENSOR_TYPE_IDS = [1, 2, 3, 4] as const;
 
-function buildMockTimestamps() {
+function buildMockTimestamps(body: SeedRequestBody) {
+  if (Array.isArray(body.timestamps) && body.timestamps.length > 0) {
+    return body.timestamps.map((timestamp) => {
+      const value = new Date(timestamp);
+      value.setSeconds(0, 0);
+      return value;
+    });
+  }
+
+  const count = Math.max(1, Math.min(body.count ?? 5, 50));
+  const intervalMinutes = Math.max(1, Math.min(body.intervalMinutes ?? 180, 1440));
   const now = new Date();
   now.setSeconds(0, 0);
+
+  if (body.startAt) {
+    const start = new Date(body.startAt);
+    if (!Number.isNaN(start.getTime())) {
+      const normalized = new Date(start);
+      normalized.setSeconds(0, 0);
+      return Array.from({ length: count }, (_, index) =>
+        new Date(normalized.getTime() + index * intervalMinutes * 60 * 1000),
+      );
+    }
+  }
 
   const minutesAgo = (minutes: number) => new Date(now.getTime() - minutes * 60 * 1000);
   const hoursAgo = (hours: number) => new Date(now.getTime() - hours * 60 * 60 * 1000);
@@ -91,7 +120,7 @@ async function loadTargetDevices() {
 }
 
 export async function POST(request: Request) {
-  const body = (await request.json().catch(() => ({}))) as { action?: "seed" | "cleanup" };
+  const body = (await request.json().catch(() => ({}))) as SeedRequestBody;
   const action = body.action ?? "seed";
 
   const devices = await loadTargetDevices();
@@ -99,7 +128,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Không tìm thấy thiết bị cảm biến để mock" }, { status: 400 });
   }
 
-  const timestamps = buildMockTimestamps();
+  const timestamps = buildMockTimestamps(body);
 
   if (action === "cleanup") {
     const values: Array<number | string | boolean | null> = [];
