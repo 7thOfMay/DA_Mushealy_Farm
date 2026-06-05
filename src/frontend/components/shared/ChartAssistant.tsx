@@ -48,7 +48,7 @@ export function ChartAssistant({ chartTitle, theoryText, analysisText }: ChartAs
   useEffect(() => () => stopSpeaking(), []);
 
   return (
-    <div className="group relative">
+    <div className={cn("group relative", open ? "z-[120]" : "z-10")}>
       <button
         type="button"
         aria-label={`Trợ lý biểu đồ ${chartTitle}`}
@@ -70,7 +70,7 @@ export function ChartAssistant({ chartTitle, theoryText, analysisText }: ChartAs
           Bạn muốn tôi hỗ trợ gì với biểu đồ này?
         </div>
       ) : (
-        <div className="absolute right-0 top-full z-30 mt-2 w-[320px] rounded-[16px] border border-[#E2E8E4] bg-white p-4 shadow-[0_12px_36px_rgba(15,23,42,0.18)]">
+        <div className="absolute right-0 top-full z-[130] mt-2 w-[320px] rounded-[16px] border border-[#E2E8E4] bg-white p-4 shadow-[0_12px_36px_rgba(15,23,42,0.18)]">
           <div className="mb-3 flex items-start justify-between gap-3">
             <div>
               <p className="text-[0.875rem] font-semibold text-[#1A2E1F]">Trợ lý biểu đồ</p>
