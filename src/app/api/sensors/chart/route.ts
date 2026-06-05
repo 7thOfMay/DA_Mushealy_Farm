@@ -65,7 +65,20 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const gardenIds = searchParams.getAll("gardenId");
-  const hours = Math.min(parseInt(searchParams.get("hours") ?? "24", 10) || 24, 24 * 30);
+  const startDate = searchParams.get("startDate");
+  const endDate = searchParams.get("endDate");
+  const fallbackHours = Math.min(parseInt(searchParams.get("hours") ?? "24", 10) || 24, 24 * 30);
+  const derivedHours =
+    startDate && endDate
+      ? Math.min(
+          Math.max(
+            1,
+            Math.ceil((new Date(`${endDate}T23:59:59`).getTime() - new Date(`${startDate}T00:00:00`).getTime()) / (60 * 60 * 1000)),
+          ),
+          24 * 30,
+        )
+      : fallbackHours;
+  const hours = derivedHours;
 
   if (!gardenIds.length) {
     return NextResponse.json({
@@ -97,6 +110,18 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 
+  const filteredRows =
+    startDate && endDate
+      ? rows.filter((row) => {
+          const reading = row as { recorded_at: Date | string };
+          const recordedAt = new Date(reading.recorded_at).getTime();
+          return (
+            recordedAt >= new Date(`${startDate}T00:00:00`).getTime() &&
+            recordedAt < new Date(`${endDate}T23:59:59.999`).getTime()
+          );
+        })
+      : rows;
+
   const bucketMinutes = getBucketMinutes(hours);
   const gardenIndex = new Map<number, string>();
   zoneIds.forEach((zoneId, index) => gardenIndex.set(zoneId, `garden${index + 1}`));
@@ -109,7 +134,7 @@ export async function GET(request: Request) {
     light: new Map(),
   };
 
-  for (const row of rows) {
+  for (const row of filteredRows) {
     const reading = row as { zone_id: number; device_type_id: number; value: number; recorded_at: Date };
     const sensorType = TYPE_MAP[reading.device_type_id];
     if (!sensorType) continue;

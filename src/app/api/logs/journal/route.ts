@@ -141,14 +141,25 @@ function metricFromDeviceType(deviceTypeId: number): JournalMetricType | undefin
 
 function buildCommonFilter(
   hours: number,
+  startAt: string | null,
+  endAt: string | null,
   farmId: number | null,
   gardenId: number | null,
   timestampColumn: string,
   farmColumn: string,
   gardenColumn: string,
 ) {
-  const params: Array<number | string> = [hours];
-  const clauses = [`${timestampColumn} >= NOW() - INTERVAL '1 hour' * $1`];
+  const params: Array<number | string> = [];
+  const clauses: string[] = [];
+
+  if (startAt && endAt) {
+    params.push(startAt, endAt);
+    clauses.push(`${timestampColumn} >= $1::timestamp`);
+    clauses.push(`${timestampColumn} < ($2::timestamp + INTERVAL '1 day')`);
+  } else {
+    params.push(hours);
+    clauses.push(`${timestampColumn} >= NOW() - INTERVAL '1 hour' * $1`);
+  }
 
   if (farmId !== null) {
     params.push(farmId);
@@ -172,6 +183,8 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const hours = Math.min(Math.max(parseInt(searchParams.get("hours") ?? "168", 10) || 168, 1), 24 * 30);
     const limit = Math.min(Math.max(parseInt(searchParams.get("limit") ?? "300", 10) || 300, 50), 1000);
+    const startAt = searchParams.get("startDate");
+    const endAt = searchParams.get("endDate");
     const farmId = searchParams.get("farmId");
     const gardenId = searchParams.get("gardenId");
     const metricTypeFilter = searchParams.get("metricType");
@@ -186,10 +199,10 @@ export async function GET(request: Request) {
     const farmNum = farmId ? parseInt(farmId.replace(/^f/, ""), 10) : null;
     const gardenNum = gardenId ? parseInt(gardenId.replace(/^g/, ""), 10) : null;
 
-    const sensorFilter = buildCommonFilter(hours, farmNum, gardenNum, "sd.recorded_at", "f.farm_id", "z.zone_id");
-    const alertFilter = buildCommonFilter(hours, farmNum, gardenNum, "a.created_at", "f.farm_id", "z.zone_id");
-    const commandFilter = buildCommonFilter(hours, farmNum, gardenNum, "dc.issued_at", "f.farm_id", "z.zone_id");
-    const auditFilter = buildCommonFilter(hours, farmNum, gardenNum, "sl.created_at", "COALESCE(fd.farm_id, fz.farm_id, ff.farm_id)", "COALESCE(zd.zone_id, zz.zone_id)");
+    const sensorFilter = buildCommonFilter(hours, startAt, endAt, farmNum, gardenNum, "sd.recorded_at", "f.farm_id", "z.zone_id");
+    const alertFilter = buildCommonFilter(hours, startAt, endAt, farmNum, gardenNum, "a.created_at", "f.farm_id", "z.zone_id");
+    const commandFilter = buildCommonFilter(hours, startAt, endAt, farmNum, gardenNum, "dc.issued_at", "f.farm_id", "z.zone_id");
+    const auditFilter = buildCommonFilter(hours, startAt, endAt, farmNum, gardenNum, "sl.created_at", "COALESCE(fd.farm_id, fz.farm_id, ff.farm_id)", "COALESCE(zd.zone_id, zz.zone_id)");
 
     const [sensorRows, alertRows, commandRows, auditRows] = await Promise.all([
       query<SensorRow>(`

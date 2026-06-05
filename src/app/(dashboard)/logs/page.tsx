@@ -14,6 +14,7 @@ import type { ChartDataPoint, Garden } from "@/types";
 type JournalKind = "sensor" | "alert" | "command" | "audit";
 type MetricFilter = "all" | "temperature" | "humidity_air" | "humidity_soil" | "light";
 type TimeFilter = "1h" | "24h" | "7d" | "30d";
+type ViewMode = "dashboard" | "list";
 
 type JournalEntry = {
   id: string;
@@ -91,6 +92,22 @@ function getHours(filter: TimeFilter) {
   return TIME_FILTERS.find((item) => item.key === filter)?.hours ?? 24 * 7;
 }
 
+function formatDateInput(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function buildDateRange(filter: TimeFilter) {
+  const now = new Date();
+  const end = formatDateInput(now);
+  const start = new Date(now);
+  const daysBack = filter === "1h" ? 0 : filter === "24h" ? 0 : filter === "7d" ? 6 : 29;
+  start.setDate(start.getDate() - daysBack);
+  return { start: formatDateInput(start), end };
+}
+
 function toGardenSeries(chartData: ChartResponse, selectedGarden: Garden, visibleGardens: Garden[], metric: MetricFilter) {
   const gardenIndex = visibleGardens.findIndex((garden) => garden.id === selectedGarden.id);
   if (gardenIndex < 0) return [];
@@ -127,6 +144,8 @@ export default function LogsPage() {
   const [kindFilter, setKindFilter] = useState<"all" | JournalKind>("all");
   const [metricFilter, setMetricFilter] = useState<MetricFilter>("all");
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("7d");
+  const [viewMode, setViewMode] = useState<ViewMode>("dashboard");
+  const [dateRange, setDateRange] = useState(() => buildDateRange("7d"));
   const [selectedGardenId, setSelectedGardenId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -168,6 +187,10 @@ export default function LogsPage() {
   const chartMetric = metricFilter === "all" ? "temperature" : metricFilter;
 
   useEffect(() => {
+    setDateRange(buildDateRange(timeFilter));
+  }, [timeFilter]);
+
+  useEffect(() => {
     if (!visibleFarms.length) {
       setLoading(false);
       setJournal({ entries: [], summary: { total: 0, sensor: 0, alert: 0, command: 0, audit: 0 } });
@@ -183,6 +206,8 @@ export default function LogsPage() {
         const params = new URLSearchParams();
         params.set("hours", String(hours));
         params.set("limit", "500");
+        params.set("startDate", dateRange.start);
+        params.set("endDate", dateRange.end);
         if (currentFarmId) params.set("farmId", currentFarmId);
         if (selectedGarden?.id) params.set("gardenId", selectedGarden.id);
         if (search.trim()) params.set("q", search.trim());
@@ -206,6 +231,8 @@ export default function LogsPage() {
         if (selectedGarden?.id) {
           const chartParams = new URLSearchParams();
           chartParams.set("hours", String(hours));
+          chartParams.set("startDate", dateRange.start);
+          chartParams.set("endDate", dateRange.end);
           chartParams.append("gardenId", selectedGarden.id);
           const chartResponse = await fetch(`/api/sensors/chart?${chartParams.toString()}`, { cache: "no-store" });
           if (chartResponse.ok) {
@@ -236,7 +263,7 @@ export default function LogsPage() {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [visibleFarms.length, currentFarmId, selectedGarden?.id, search, kindFilter, metricFilter, timeFilter]);
+  }, [visibleFarms.length, currentFarmId, selectedGarden?.id, search, kindFilter, metricFilter, timeFilter, dateRange.start, dateRange.end]);
 
   const chartSeries = useMemo(
     () => (selectedGarden ? toGardenSeries(chartData, selectedGarden, farmScopedGardens.slice(0, 3), chartMetric) : []),
@@ -264,6 +291,26 @@ export default function LogsPage() {
       <Topbar title="Nhật ký tổng thể" subtitle={`${journal.summary.total} bản ghi đang hiển thị`} />
 
       <div className="space-y-5 p-8">
+        <div className="flex items-center gap-2">
+          {[
+            { key: "dashboard" as const, label: "Dashboard nhật ký" },
+            { key: "list" as const, label: "Danh sách bản ghi" },
+          ].map((item) => (
+            <button
+              key={item.key}
+              onClick={() => setViewMode(item.key)}
+              className={cn(
+                "rounded-[999px] border px-4 py-2 text-[0.875rem] font-medium transition-colors",
+                viewMode === item.key
+                  ? "border-[#1B4332] bg-[#1B4332] text-white"
+                  : "border-[#E2E8E4] bg-white text-[#5C7A6A] hover:border-[#1B4332] hover:text-[#1B4332]",
+              )}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {[
             { label: "Cảm biến", value: journal.summary.sensor, color: "#1B4332", icon: Waves },
@@ -285,7 +332,7 @@ export default function LogsPage() {
         </div>
 
         <div className="card p-4 space-y-4">
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_auto_auto]">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_auto_auto_auto]">
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5C7A6A]" />
               <input
@@ -325,6 +372,22 @@ export default function LogsPage() {
                 </button>
               ))}
             </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <input
+                type="date"
+                value={dateRange.start}
+                onChange={(event) => setDateRange((prev) => ({ ...prev, start: event.target.value }))}
+                className="rounded-[8px] border border-[#E2E8E4] bg-white px-3 py-2 text-[0.8125rem] text-[#1A2E1F]"
+              />
+              <span className="text-[0.8125rem] text-[#5C7A6A]">đến</span>
+              <input
+                type="date"
+                value={dateRange.end}
+                onChange={(event) => setDateRange((prev) => ({ ...prev, end: event.target.value }))}
+                className="rounded-[8px] border border-[#E2E8E4] bg-white px-3 py-2 text-[0.8125rem] text-[#1A2E1F]"
+              />
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -362,68 +425,73 @@ export default function LogsPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-          <div className="card p-5">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A]">Biểu đồ lịch sử cảm biến</p>
-                <p className="text-[0.875rem] text-[#1A2E1F]">
-                  {selectedGarden ? `${selectedGarden.name} • ${METRIC_FILTERS.find((item) => item.key === chartMetric)?.label}` : "Chưa chọn khu vườn"}
-                </p>
-              </div>
-              <div className="rounded-[999px] border border-[#E2E8E4] px-3 py-1 text-[0.75rem] text-[#5C7A6A]">
-                Đơn vị: {metricUnit}
-              </div>
-            </div>
-
-            <div className="h-[260px]">
-              {chartSeries.length === 0 ? (
-                <div className="flex h-full items-center justify-center rounded-[10px] border border-dashed border-[#D7E2DB] bg-[#F7F8F6] px-6 text-center text-[0.875rem] text-[#5C7A6A]">
-                  Không có dữ liệu cảm biến theo bộ lọc hiện tại.
+        {viewMode === "dashboard" && (
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+            <div className="card p-5">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A]">Biểu đồ lịch sử cảm biến</p>
+                  <p className="text-[0.875rem] text-[#1A2E1F]">
+                    {selectedGarden ? `${selectedGarden.name} • ${METRIC_FILTERS.find((item) => item.key === chartMetric)?.label}` : "Chưa chọn khu vườn"}
+                  </p>
                 </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartSeries}>
-                    <CartesianGrid stroke="#E2E8E4" strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="time" tick={{ fill: "#5C7A6A", fontSize: 11 }} />
-                    <YAxis tick={{ fill: "#5C7A6A", fontSize: 11 }} />
-                    <Tooltip formatter={(value) => [value, metricUnit]} />
-                    <Line type={timeFilter === "1h" ? "stepAfter" : "monotone"} dataKey="value" stroke="#1B4332" strokeWidth={2} dot={timeFilter === "1h" ? { r: 2 } : false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
+                <div className="rounded-[999px] border border-[#E2E8E4] px-3 py-1 text-[0.75rem] text-[#5C7A6A]">
+                  Đơn vị: {metricUnit}
+                </div>
+              </div>
+
+              <div className="h-[260px]">
+                {chartSeries.length === 0 ? (
+                  <div className="flex h-full items-center justify-center rounded-[10px] border border-dashed border-[#D7E2DB] bg-[#F7F8F6] px-6 text-center text-[0.875rem] text-[#5C7A6A]">
+                    Không có dữ liệu cảm biến theo bộ lọc hiện tại.
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartSeries}>
+                      <CartesianGrid stroke="#E2E8E4" strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="time" tick={{ fill: "#5C7A6A", fontSize: 11 }} />
+                      <YAxis tick={{ fill: "#5C7A6A", fontSize: 11 }} />
+                      <Tooltip formatter={(value) => [value, metricUnit]} />
+                      <Line type={timeFilter === "1h" ? "stepAfter" : "monotone"} dataKey="value" stroke="#1B4332" strokeWidth={2} dot={timeFilter === "1h" ? { r: 2 } : false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
+
+            <div className="card p-5">
+              <div className="mb-3 flex items-center gap-2">
+                <Settings2 size={16} className="text-[#5C7A6A]" />
+                <h3 className="text-[0.9375rem] font-semibold text-[#1A2E1F]">Phạm vi nhật ký hiện tại</h3>
+              </div>
+              <div className="space-y-3 text-[0.875rem] text-[#5C7A6A]">
+                <div>
+                  <span className="font-medium text-[#1A2E1F]">Nông trại:</span> {visibleFarms.find((farm) => farm.id === currentFarmId)?.name ?? "Tất cả trong phạm vi"}
+                </div>
+                <div>
+                  <span className="font-medium text-[#1A2E1F]">Khu vườn:</span> {selectedGarden?.name ?? "Chưa chọn"}
+                </div>
+                <div>
+                  <span className="font-medium text-[#1A2E1F]">Từ ngày:</span> {dateRange.start}
+                </div>
+                <div>
+                  <span className="font-medium text-[#1A2E1F]">Đến ngày:</span> {dateRange.end}
+                </div>
+                <div>
+                  <span className="font-medium text-[#1A2E1F]">Loại bản ghi:</span> {KIND_FILTERS.find((item) => item.key === kindFilter)?.label}
+                </div>
+                <div>
+                  <span className="font-medium text-[#1A2E1F]">Chỉ số:</span> {METRIC_FILTERS.find((item) => item.key === metricFilter)?.label}
+                </div>
+                <div className="rounded-[10px] bg-[#F7F8F6] p-3 text-[0.8125rem]">
+                  Tab dashboard tập trung vào xu hướng dữ liệu và phạm vi đang theo dõi. Tab danh sách tập trung vào tra cứu từng bản ghi chi tiết.
+                </div>
+              </div>
             </div>
           </div>
+        )}
 
-          <div className="card p-5">
-            <div className="mb-3 flex items-center gap-2">
-              <Settings2 size={16} className="text-[#5C7A6A]" />
-              <h3 className="text-[0.9375rem] font-semibold text-[#1A2E1F]">Phạm vi nhật ký hiện tại</h3>
-            </div>
-            <div className="space-y-3 text-[0.875rem] text-[#5C7A6A]">
-              <div>
-                <span className="font-medium text-[#1A2E1F]">Nông trại:</span> {visibleFarms.find((farm) => farm.id === currentFarmId)?.name ?? "Tất cả trong phạm vi"}
-              </div>
-              <div>
-                <span className="font-medium text-[#1A2E1F]">Khu vườn:</span> {selectedGarden?.name ?? "Chưa chọn"}
-              </div>
-              <div>
-                <span className="font-medium text-[#1A2E1F]">Khoảng thời gian:</span> {TIME_FILTERS.find((item) => item.key === timeFilter)?.label}
-              </div>
-              <div>
-                <span className="font-medium text-[#1A2E1F]">Loại bản ghi:</span> {KIND_FILTERS.find((item) => item.key === kindFilter)?.label}
-              </div>
-              <div>
-                <span className="font-medium text-[#1A2E1F]">Chỉ số:</span> {METRIC_FILTERS.find((item) => item.key === metricFilter)?.label}
-              </div>
-              <div className="rounded-[10px] bg-[#F7F8F6] p-3 text-[0.8125rem]">
-                Nhật ký này đã hợp nhất dữ liệu cảm biến, cảnh báo, lệnh thiết bị và nhật ký hệ thống để tra cứu lịch sử theo cùng một màn hình.
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="card overflow-hidden">
+        <div className={cn("card overflow-hidden", viewMode === "list" ? "min-h-[520px]" : "")}>
           {loading ? (
             <div className="p-6 text-[0.875rem] text-[#5C7A6A]">Đang tải nhật ký tổng thể...</div>
           ) : error ? (
