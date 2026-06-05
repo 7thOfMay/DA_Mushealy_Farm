@@ -280,6 +280,8 @@ interface AppState {
   // Sidebar state
   sidebarOpen: boolean;
   toggleSidebar: () => void;
+  sidebarCollapsed: boolean;
+  toggleSidebarCollapsed: () => void;
 
   // Auth
   users: User[];
@@ -458,6 +460,8 @@ export const useAppStore = create<AppState>((set) => ({
 
   sidebarOpen: false,
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+  sidebarCollapsed: false,
+  toggleSidebarCollapsed: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
 
   users: initialRuntimeSnapshot.users,
   addUser: (user) =>

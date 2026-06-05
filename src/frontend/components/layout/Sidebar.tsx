@@ -17,6 +17,8 @@ import {
   Cpu,
   LayoutDashboard,
   LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   Settings2,
   Sprout,
@@ -71,6 +73,8 @@ export function Sidebar() {
   const gardens = useAppStore((s) => s.gardens);
   const sidebarOpen = useAppStore((s) => s.sidebarOpen);
   const toggleSidebar = useAppStore((s) => s.toggleSidebar);
+  const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
+  const toggleSidebarCollapsed = useAppStore((s) => s.toggleSidebarCollapsed);
   const loggedInUser = useAppStore((s) => s.loggedInUser);
   const users = useAppStore((s) => s.users);
   const logout = useAppStore((s) => s.logout);
@@ -153,87 +157,100 @@ export function Sidebar() {
 
       <aside
         className={cn(
-          "fixed left-0 top-0 z-40 flex h-full w-64 flex-col bg-[#1B4332] transition-transform duration-300",
-          "lg:translate-x-0",
+          "fixed left-0 top-0 z-40 flex h-full flex-col bg-[#1B4332] transition-[transform,width] duration-300",
           sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
         )}
+        style={{ width: sidebarCollapsed ? 88 : 256 }}
       >
-        <div className="flex items-center gap-3 border-b border-white/10 px-5 py-5">
+        <div className={cn("flex items-center border-b border-white/10 px-5 py-5", sidebarCollapsed ? "justify-center" : "gap-3")}>
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-[8px] bg-white/15">
             <Image src="/mushealy-logo.png" alt="Mushealy" width={24} height={24} className="object-contain" />
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[1rem] font-bold leading-none text-white">Mushealy</p>
-            <p className="mt-0.5 text-[0.625rem] uppercase tracking-widest text-white/75">Smart Farm System</p>
-          </div>
+
+          {!sidebarCollapsed && (
+            <div className="min-w-0 flex-1">
+              <p className="text-[1rem] font-bold leading-none text-white">Mushealy</p>
+              <p className="mt-0.5 text-[0.625rem] uppercase tracking-widest text-white/75">Smart Farm System</p>
+            </div>
+          )}
+
           <button onClick={toggleSidebar} className="text-white/75 hover:text-white lg:hidden">
             <X size={18} />
           </button>
+          <button
+            onClick={toggleSidebarCollapsed}
+            className="hidden text-white/75 hover:text-white lg:flex"
+            title={sidebarCollapsed ? "Mở rộng sidebar" : "Thu gọn sidebar"}
+          >
+            {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+          </button>
         </div>
 
-        <div className="px-3 pt-3">
-          {visibleFarms.length > 0 ? (
-            <div className="rounded-[10px] border border-white/20 bg-white/10 p-2">
-              {role === "ADMIN" && managedFarmers.length > 0 && (
-                <>
-                  <label htmlFor="sidebar-farmer-select" className="px-1 text-[0.625rem] font-semibold uppercase tracking-[2px] text-white">
-                    Nông dân quản lý
-                  </label>
-                  <div className="relative mb-2 mt-1">
-                    <select
-                      id="sidebar-farmer-select"
-                      name="sidebar-farmer-select"
-                      className="w-full appearance-none rounded-[8px] border border-white/20 bg-white px-3 py-2 text-[0.8125rem] font-semibold text-[#1A2E1F] shadow-inner outline-none"
-                      value={selectedFarmerId ?? ""}
-                      onChange={(event) => setSelectedFarmerId(event.target.value || null)}
-                    >
-                      {managedFarmers.map((farmer) => (
-                        <option key={farmer.id} value={farmer.id} className="text-[#1A2E1F]">
-                          {farmer.name}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronsUpDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#5C7A6A]" />
-                  </div>
-                </>
-              )}
+        {!sidebarCollapsed && (
+          <div className="px-3 pt-3">
+            {visibleFarms.length > 0 ? (
+              <div className="rounded-[10px] border border-white/20 bg-white/10 p-2">
+                {role === "ADMIN" && managedFarmers.length > 0 && (
+                  <>
+                    <label htmlFor="sidebar-farmer-select" className="px-1 text-[0.625rem] font-semibold uppercase tracking-[2px] text-white">
+                      Nông dân quản lý
+                    </label>
+                    <div className="relative mb-2 mt-1">
+                      <select
+                        id="sidebar-farmer-select"
+                        name="sidebar-farmer-select"
+                        className="w-full appearance-none rounded-[8px] border border-white/20 bg-white px-3 py-2 text-[0.8125rem] font-semibold text-[#1A2E1F] shadow-inner outline-none"
+                        value={selectedFarmerId ?? ""}
+                        onChange={(event) => setSelectedFarmerId(event.target.value || null)}
+                      >
+                        {managedFarmers.map((farmer) => (
+                          <option key={farmer.id} value={farmer.id}>
+                            {farmer.name}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronsUpDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#5C7A6A]" />
+                    </div>
+                  </>
+                )}
 
-              <label htmlFor="sidebar-farm-select" className="px-1 text-[0.625rem] font-semibold uppercase tracking-[2px] text-white">
-                Nông trại hiện tại
-              </label>
-              <div className="relative mt-1">
-                <select
-                  id="sidebar-farm-select"
-                  name="sidebar-farm-select"
-                  className="w-full appearance-none rounded-[8px] border border-white/20 bg-white px-3 py-2 text-[0.8125rem] font-semibold text-[#1A2E1F] shadow-inner outline-none"
-                  value={activeFarm?.id ?? ""}
-                  onChange={(event) => {
-                    setCurrentFarmId(event.target.value);
-                    router.push(`/farms/${event.target.value}`);
-                  }}
+                <label htmlFor="sidebar-farm-select" className="px-1 text-[0.625rem] font-semibold uppercase tracking-[2px] text-white">
+                  Nông trại hiện tại
+                </label>
+                <div className="relative mt-1">
+                  <select
+                    id="sidebar-farm-select"
+                    name="sidebar-farm-select"
+                    className="w-full appearance-none rounded-[8px] border border-white/20 bg-white px-3 py-2 text-[0.8125rem] font-semibold text-[#1A2E1F] shadow-inner outline-none"
+                    value={activeFarm?.id ?? ""}
+                    onChange={(event) => {
+                      setCurrentFarmId(event.target.value);
+                      router.push(`/farms/${event.target.value}`);
+                    }}
+                  >
+                    {visibleFarms.map((farm) => (
+                      <option key={farm.id} value={farm.id}>
+                        {farm.name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronsUpDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#5C7A6A]" />
+                </div>
+                <button
+                  onClick={() => router.push("/farms/new")}
+                  className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-[8px] py-1.5 text-[0.75rem] font-medium text-white transition-colors hover:bg-white/10"
                 >
-                  {visibleFarms.map((farm) => (
-                    <option key={farm.id} value={farm.id} className="text-[#1A2E1F]">
-                      {farm.name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronsUpDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#5C7A6A]" />
+                  <Plus size={13} />
+                  Thêm nông trại
+                </button>
               </div>
-              <button
-                onClick={() => router.push("/farms/new")}
-                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-[8px] py-1.5 text-[0.75rem] font-medium text-white transition-colors hover:bg-white/10 hover:text-white"
-              >
-                <Plus size={13} />
-                Thêm nông trại
-              </button>
-            </div>
-          ) : (
-            <div className="rounded-[10px] border border-white/20 bg-white/10 px-3 py-2">
-              <p className="text-[0.75rem] text-white/85">Chưa có nông trại phù hợp ngữ cảnh.</p>
-            </div>
-          )}
-        </div>
+            ) : (
+              <div className="rounded-[10px] border border-white/20 bg-white/10 px-3 py-2">
+                <p className="text-[0.75rem] text-white/85">Chưa có nông trại phù hợp ngữ cảnh.</p>
+              </div>
+            )}
+          </div>
+        )}
 
         <nav className="flex-1 overflow-y-auto px-3 py-3">
           {sections.map((section) => {
@@ -242,9 +259,12 @@ export function Sidebar() {
 
             return (
               <div key={section}>
-                <p className="px-3 pb-1.5 pt-5 text-[0.625rem] font-semibold uppercase tracking-[2px] text-white/70">
-                  {section}
-                </p>
+                {!sidebarCollapsed && (
+                  <p className="px-3 pb-1.5 pt-5 text-[0.625rem] font-semibold uppercase tracking-[2px] text-white/70">
+                    {section}
+                  </p>
+                )}
+
                 {items.map((item) => {
                   const Icon = item.icon;
                   const href = item.href(activeFarm?.id ?? null);
@@ -254,17 +274,19 @@ export function Sidebar() {
                     <Link
                       key={`${item.label}-${href}`}
                       href={href}
+                      title={sidebarCollapsed ? item.label : undefined}
                       onClick={() => sidebarOpen && toggleSidebar()}
                       className={cn(
-                        "relative mb-0.5 flex items-center gap-3 rounded-[8px] px-3 py-2.5 text-[0.875rem] font-medium transition-all",
+                        "relative mb-0.5 flex items-center rounded-[8px] py-2.5 text-[0.875rem] font-medium transition-all",
+                        sidebarCollapsed ? "justify-center px-2" : "gap-3 px-3",
                         active
                           ? "bg-white/15 text-white before:absolute before:bottom-2 before:left-0 before:top-2 before:w-[3px] before:rounded-r-full before:bg-[#52B788]"
                           : "text-white hover:bg-white/10 hover:text-white",
                       )}
                     >
                       <Icon size={18} strokeWidth={1.5} className="flex-shrink-0 text-inherit" />
-                      <span className="flex-1 text-white">{item.label}</span>
-                      {item.alertKey && unhandledAlerts > 0 && (
+                      {!sidebarCollapsed && <span className="flex-1 text-white">{item.label}</span>}
+                      {!sidebarCollapsed && item.alertKey && unhandledAlerts > 0 && (
                         <span className="rounded-[10px] bg-[#C0392B] px-1.5 py-0.5 text-[0.625rem] font-bold leading-none text-white">
                           {unhandledAlerts}
                         </span>
@@ -278,28 +300,40 @@ export function Sidebar() {
         </nav>
 
         <div className="border-t border-white/10 p-3">
-          <div className="mb-1 px-3">
-            <span
-              className={cn(
-                "rounded-full px-2 py-0.5 text-[0.5625rem] font-bold uppercase tracking-widest",
-                role === "ADMIN" ? "bg-[#52B788]/20 text-white" : "bg-[#E67E22]/20 text-white",
-              )}
-            >
-              {roleLabel}
-            </span>
-          </div>
+          {!sidebarCollapsed && (
+            <div className="mb-1 px-3">
+              <span
+                className={cn(
+                  "rounded-full px-2 py-0.5 text-[0.5625rem] font-bold uppercase tracking-widest",
+                  role === "ADMIN" ? "bg-[#52B788]/20 text-white" : "bg-[#E67E22]/20 text-white",
+                )}
+              >
+                {roleLabel}
+              </span>
+            </div>
+          )}
+
           <button
             onClick={handleLogout}
-            className="group flex w-full cursor-pointer items-center gap-3 rounded-[8px] px-3 py-2.5 transition-colors hover:bg-white/10"
+            title={sidebarCollapsed ? displayName : undefined}
+            className={cn(
+              "group flex w-full cursor-pointer items-center rounded-[8px] py-2.5 transition-colors hover:bg-white/10",
+              sidebarCollapsed ? "justify-center px-2" : "gap-3 px-3",
+            )}
           >
             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#40916C] text-[0.75rem] font-bold text-white">
               {initials}
             </div>
-            <div className="min-w-0 flex-1 text-left">
-              <p className="truncate text-[0.8125rem] font-medium text-white">{displayName}</p>
-              <p className="text-[0.6875rem] text-white/70">{roleLabel}</p>
-            </div>
-            <LogOut size={14} className="flex-shrink-0 text-white/60 transition-colors group-hover:text-white" />
+
+            {!sidebarCollapsed && (
+              <>
+                <div className="min-w-0 flex-1 text-left">
+                  <p className="truncate text-[0.8125rem] font-medium text-white">{displayName}</p>
+                  <p className="text-[0.6875rem] text-white/70">{roleLabel}</p>
+                </div>
+                <LogOut size={14} className="flex-shrink-0 text-white/60 transition-colors group-hover:text-white" />
+              </>
+            )}
           </button>
         </div>
       </aside>

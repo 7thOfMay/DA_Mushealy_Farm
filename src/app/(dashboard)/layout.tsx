@@ -5,17 +5,24 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "@/frontend/components/layout/Sidebar";
 import { ToastContainer } from "@/frontend/components/shared/ToastContainer";
 import { FloatingChat } from "@/frontend/components/shared/FloatingChat";
+import { useAppStore } from "@/frontend/context/store";
 import { useAuth } from "@/frontend/hooks/useAuth";
 import { useApiHydration } from "@/frontend/hooks/useApiHydration";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
   const { user: loggedInUser } = useAuth();
   const hydrationStatus = useApiHydration();
+  const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
 
   useEffect(() => {
     setMounted(true);
+    const syncViewport = () => setIsDesktop(window.innerWidth >= 1024);
+    syncViewport();
+    window.addEventListener("resize", syncViewport);
+    return () => window.removeEventListener("resize", syncViewport);
   }, []);
 
   useEffect(() => {
@@ -55,7 +62,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex h-screen bg-[#F7F8F6] overflow-hidden">
       <Sidebar />
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden lg:pl-64">
+      <main
+        className="flex-1 flex flex-col min-w-0 overflow-hidden transition-[padding-left] duration-300"
+        style={{ paddingLeft: isDesktop ? (sidebarCollapsed ? 88 : 256) : 0 }}
+      >
         <div className="flex-1 overflow-y-auto">
           {children}
         </div>
