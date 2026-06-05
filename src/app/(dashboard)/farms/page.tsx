@@ -39,14 +39,18 @@ export default function FarmsPage() {
 
   return (
     <div>
-      <Topbar title="Danh sách Nông trại" subtitle={`${filteredFarms.length} nông trại hiển thị`} />
+      <Topbar
+        title="Danh sÃ¡ch NÃ´ng tráº¡i"
+        subtitle={`${filteredFarms.length} nÃ´ng tráº¡i hiá»ƒn thá»‹`}
+        titleVariant="section"
+      />
       <div className="p-8 space-y-5">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex gap-2 flex-wrap">
             {[
-              { id: "all", label: "Tất cả" },
-              { id: "active", label: "Đang hoạt động" },
-              { id: "paused", label: "Tạm dừng" },
+              { id: "all", label: "Táº¥t cáº£" },
+              { id: "active", label: "Äang hoáº¡t Ä‘á»™ng" },
+              { id: "paused", label: "Táº¡m dá»«ng" },
             ].map((item) => (
               <button
                 key={item.id}
@@ -62,17 +66,17 @@ export default function FarmsPage() {
               </button>
             ))}
           </div>
-          <Link href="/farms/new" className="btn-primary">+ Thêm nông trại</Link>
+          <Link href="/farms/new" className="btn-primary">+ ThÃªm nÃ´ng tráº¡i</Link>
         </div>
 
         {filteredFarms.length === 0 && (
           <EmptyState
             icon={Sprout}
-            title="Chưa có nông trại nào"
+            title="ChÆ°a cÃ³ nÃ´ng tráº¡i nÃ o"
             description={role === "ADMIN"
-              ? "Hãy chọn nông dân ở sidebar hoặc thêm nông trại mới cho nông dân đang quản lý."
-              : "Bạn chưa có nông trại nào. Hãy thêm nông trại để bắt đầu quản lý hệ thống 2 cấp Farm/Garden."}
-            action={{ label: "Thêm nông trại", onClick: () => router.push("/farms/new") }}
+              ? "HÃ£y chá»n nÃ´ng dÃ¢n á»Ÿ sidebar hoáº·c thÃªm nÃ´ng tráº¡i má»›i cho nÃ´ng dÃ¢n Ä‘ang quáº£n lÃ½."
+              : "Báº¡n chÆ°a cÃ³ nÃ´ng tráº¡i nÃ o. HÃ£y thÃªm nÃ´ng tráº¡i Ä‘á»ƒ báº¯t Ä‘áº§u quáº£n lÃ½ há»‡ thá»‘ng 2 cáº¥p Farm/Garden."}
+            action={{ label: "ThÃªm nÃ´ng tráº¡i", onClick: () => router.push("/farms/new") }}
           />
         )}
 
@@ -109,24 +113,24 @@ export default function FarmsPage() {
                     </div>
 
                     <div className="text-[0.8125rem] text-[#5C7A6A] mb-3">
-                      {farmGardens.length} khu vườn · {farmDevices.length} thiết bị · {farmAlerts.filter((a) => a.status !== "RESOLVED").length} cảnh báo
+                      {farmGardens.length} khu vÆ°á»n Â· {farmDevices.length} thiáº¿t bá»‹ Â· {farmAlerts.filter((a) => a.status !== "RESOLVED").length} cáº£nh bÃ¡o
                     </div>
 
                     <div className="flex flex-wrap gap-1.5 mb-4">
                       {cropTags.map((cropTag) => {
                         const crop = plantTypeInfos.find((item) => item.id === (farmGardens.find((g) => g.cropTypeId === cropTag)?.plantType));
-                        return <Badge key={cropTag} variant="default">{crop?.label ?? "Khác"}</Badge>;
+                        return <Badge key={cropTag} variant="default">{crop?.label ?? "KhÃ¡c"}</Badge>;
                       })}
                     </div>
 
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-[0.6875rem] text-[#5C7A6A]">Cập nhật {timeAgo(farm.createdAt)}</p>
+                      <p className="text-[0.6875rem] text-[#5C7A6A]">Cáº­p nháº­t {timeAgo(farm.createdAt)}</p>
                       <Link
                         href={`/farms/${farm.id}`}
                         onClick={() => setCurrentFarmId(farm.id)}
                         className="btn-primary"
                       >
-                        Xem chi tiết
+                        Xem chi tiáº¿t
                       </Link>
                     </div>
                   </div>

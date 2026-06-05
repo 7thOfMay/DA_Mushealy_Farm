@@ -8,9 +8,10 @@ import { useState, useEffect } from "react";
 interface TopbarProps {
   title: string;
   subtitle?: string;
+  titleVariant?: "display" | "section";
 }
 
-export function Topbar({ title, subtitle }: TopbarProps) {
+export function Topbar({ title, subtitle, titleVariant = "display" }: TopbarProps) {
   const toggleSidebar = useAppStore((s) => s.toggleSidebar);
   const alerts = useAppStore((s) => s.alerts);
   const unhandledAlerts = alerts.filter((a) => a.status === "DETECTED").length;
@@ -36,8 +37,15 @@ export function Topbar({ title, subtitle }: TopbarProps) {
         </button>
         <div>
           <h1
-            className="text-[1.75rem] text-[#1A2E1F] leading-tight"
-            style={{ fontFamily: "'Instrument Serif', serif", fontStyle: "italic" }}
+            className={cn(
+              "text-[#1A2E1F] leading-tight",
+              titleVariant === "display"
+                ? "text-[1.75rem]"
+                : "text-[1.625rem] font-semibold tracking-tight"
+            )}
+            style={titleVariant === "display"
+              ? { fontFamily: "'Instrument Serif', serif", fontStyle: "italic" }
+              : undefined}
           >
             {title}
           </h1>

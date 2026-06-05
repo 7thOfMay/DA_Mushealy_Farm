@@ -258,11 +258,11 @@ export function FloatingChat() {
     setOpenPanel((prev) => (prev === type ? null : type));
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+    <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2 sm:bottom-5 sm:right-5">
       {/* Chat panel */}
       {openPanel && (
         <div
-          className="w-[340px] h-[480px] rounded-[16px] shadow-[0_8px_40px_rgba(0,0,0,0.18)] flex flex-col overflow-hidden border border-[#E2E8E4] animate-in fade-in slide-in-from-bottom-4 duration-200"
+          className="w-[min(340px,calc(100vw-1.5rem))] h-[480px] rounded-[16px] shadow-[0_8px_40px_rgba(0,0,0,0.18)] flex flex-col overflow-hidden border border-[#E2E8E4] animate-in fade-in slide-in-from-bottom-4 duration-200"
           style={{ background: "white" }}
         >
           <ChatPanel type={openPanel} farmContext={farmContext} onClose={() => setOpenPanel(null)} />
@@ -270,7 +270,7 @@ export function FloatingChat() {
       )}
 
       {/* Buttons row */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col items-end gap-2">
         {/* Label */}
         {!openPanel && (
           <p className="text-[0.6875rem] text-[#5C7A6A] bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full border border-[#E2E8E4] shadow-sm hidden sm:block">
@@ -283,7 +283,7 @@ export function FloatingChat() {
           <button
             onClick={() => toggle("tech")}
             className={cn(
-              "w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110",
+              "w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-105",
               openPanel === "tech"
                 ? "scale-110 ring-2 ring-offset-2 ring-[#2980B9]"
                 : ""
@@ -291,7 +291,7 @@ export function FloatingChat() {
             style={{ backgroundColor: openPanel === "tech" ? "#1a6fa8" : "#2980B9" }}
             title="Chat với kỹ thuật viên"
           >
-            <MessageCircle size={22} className="text-white" />
+            <MessageCircle size={18} className="text-white" />
           </button>
           {/* Online dot */}
           <span className="absolute top-0 right-0 w-3 h-3 bg-[#27AE60] rounded-full border-2 border-white" />
@@ -307,7 +307,7 @@ export function FloatingChat() {
           <button
             onClick={() => toggle("ai")}
             className={cn(
-              "w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110",
+              "w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-105",
               openPanel === "ai"
                 ? "scale-110 ring-2 ring-offset-2 ring-[#1B4332]"
                 : ""
@@ -315,7 +315,7 @@ export function FloatingChat() {
             style={{ backgroundColor: openPanel === "ai" ? "#163829" : "#1B4332" }}
             title="Trợ lý AI"
           >
-            <BrainCircuit size={22} className="text-white" />
+            <BrainCircuit size={18} className="text-white" />
           </button>
           {/* Pulse dot */}
           <span className="absolute top-0 right-0 w-3 h-3 bg-[#52B788] rounded-full border-2 border-white animate-pulse" />
