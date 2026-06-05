@@ -1,30 +1,30 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import Image from "next/image";
-import { cn } from "@/frontend/utils/utils";
-import { useAppStore } from "@/frontend/context/store";
-import { getDefaultAdminFarmerId, getManagedFarmers, getVisibleFarmsForViewer } from "@/frontend/utils/dataScope";
 import {
   AlertTriangle,
   BarChart3,
   BrainCircuit,
   CalendarClock,
+  ChevronLeft,
+  ChevronRight,
   ChevronsUpDown,
   ClipboardList,
   Cpu,
   LayoutDashboard,
   LogOut,
-  PanelLeftClose,
-  PanelLeftOpen,
   Plus,
   Settings2,
   Sprout,
   Users,
   X,
 } from "lucide-react";
+import { useAppStore } from "@/frontend/context/store";
+import { getDefaultAdminFarmerId, getManagedFarmers, getVisibleFarmsForViewer } from "@/frontend/utils/dataScope";
+import { cn } from "@/frontend/utils/utils";
 import type { UserRole } from "@/types";
 
 const navItems: Array<{
@@ -64,19 +64,20 @@ function getInitials(name: string) {
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+
   const farms = useAppStore((s) => s.farms);
+  const gardens = useAppStore((s) => s.gardens);
+  const alerts = useAppStore((s) => s.alerts);
+  const users = useAppStore((s) => s.users);
+  const loggedInUser = useAppStore((s) => s.loggedInUser);
   const currentFarmId = useAppStore((s) => s.currentFarmId);
   const selectedFarmerId = useAppStore((s) => s.selectedFarmerId);
+  const sidebarOpen = useAppStore((s) => s.sidebarOpen);
+  const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
   const setCurrentFarmId = useAppStore((s) => s.setCurrentFarmId);
   const setSelectedFarmerId = useAppStore((s) => s.setSelectedFarmerId);
-  const alerts = useAppStore((s) => s.alerts);
-  const gardens = useAppStore((s) => s.gardens);
-  const sidebarOpen = useAppStore((s) => s.sidebarOpen);
   const toggleSidebar = useAppStore((s) => s.toggleSidebar);
-  const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
   const toggleSidebarCollapsed = useAppStore((s) => s.toggleSidebarCollapsed);
-  const loggedInUser = useAppStore((s) => s.loggedInUser);
-  const users = useAppStore((s) => s.users);
   const logout = useAppStore((s) => s.logout);
 
   const role: UserRole = loggedInUser?.role ?? "ADMIN";
@@ -126,16 +127,16 @@ export function Sidebar() {
       router.replace(`/farms/${visibleFarms[0].id}`);
     }
   }, [
-    visibleFarms,
     currentFarmId,
-    setCurrentFarmId,
-    role,
-    pathname,
-    router,
-    users,
     loggedInUser,
+    pathname,
+    role,
+    router,
     selectedFarmerId,
+    setCurrentFarmId,
     setSelectedFarmerId,
+    users,
+    visibleFarms,
   ]);
 
   const isActive = (href: string) => {
@@ -162,6 +163,14 @@ export function Sidebar() {
         )}
         style={{ width: sidebarCollapsed ? 88 : 256 }}
       >
+        <button
+          onClick={toggleSidebarCollapsed}
+          className="absolute -right-3 top-20 z-50 hidden h-7 w-7 items-center justify-center rounded-full border border-[#D7E0DA] bg-white text-[#1B4332] shadow-sm lg:flex"
+          title={sidebarCollapsed ? "Mở rộng sidebar" : "Thu gọn sidebar"}
+        >
+          {sidebarCollapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+        </button>
+
         <div className={cn("flex items-center border-b border-white/10 px-5 py-5", sidebarCollapsed ? "justify-center" : "gap-3")}>
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-[8px] bg-white/15">
             <Image src="/mushealy-logo.png" alt="Mushealy" width={24} height={24} className="object-contain" />
@@ -176,13 +185,6 @@ export function Sidebar() {
 
           <button onClick={toggleSidebar} className="text-white/75 hover:text-white lg:hidden">
             <X size={18} />
-          </button>
-          <button
-            onClick={toggleSidebarCollapsed}
-            className="hidden text-white/75 hover:text-white lg:flex"
-            title={sidebarCollapsed ? "Mở rộng sidebar" : "Thu gọn sidebar"}
-          >
-            {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
           </button>
         </div>
 
@@ -236,6 +238,7 @@ export function Sidebar() {
                   </select>
                   <ChevronsUpDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#5C7A6A]" />
                 </div>
+
                 <button
                   onClick={() => router.push("/farms/new")}
                   className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-[8px] py-1.5 text-[0.75rem] font-medium text-white transition-colors hover:bg-white/10"
