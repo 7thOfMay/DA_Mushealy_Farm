@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Bot, BrainCircuit, MessageCircle, Send, User, Wrench, X } from "lucide-react";
 import { cn } from "@/frontend/utils/utils";
 import { useAppStore } from "@/frontend/context/store";
@@ -98,6 +99,7 @@ function ChatPanel({ type, farmContext, onClose }: PanelProps) {
       text,
       time: now(),
     };
+
     setMessages((current) => [...current, userMsg]);
     setTyping(true);
 
@@ -236,15 +238,24 @@ function ChatPanel({ type, farmContext, onClose }: PanelProps) {
 
 export function FloatingChat() {
   const [openPanel, setOpenPanel] = useState<ChatType | null>(null);
+  const [mounted, setMounted] = useState(false);
   const farms = useAppStore((state) => state.farms);
   const currentFarmId = useAppStore((state) => state.currentFarmId);
   const activeFarm = farms.find((farm) => farm.id === currentFarmId);
   const farmContext = activeFarm ? `${activeFarm.name} (${activeFarm.location})` : "Toàn hệ thống";
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const toggle = (type: ChatType) => setOpenPanel((current) => (current === type ? null : type));
 
-  return (
-    <div className="fixed bottom-2 right-2 z-50 flex flex-col items-end gap-2 sm:bottom-3 sm:right-3">
+  if (!mounted || typeof document === "undefined") {
+    return null;
+  }
+
+  return createPortal(
+    <div className="fixed bottom-2 right-2 z-[100] flex flex-col items-end gap-2 sm:bottom-3 sm:right-3">
       {openPanel && (
         <div
           className="flex h-[480px] w-[min(340px,calc(100vw-1rem))] flex-col overflow-hidden rounded-[16px] border border-[#E2E8E4] shadow-[0_8px_40px_rgba(0,0,0,0.18)] animate-in fade-in slide-in-from-bottom-4 duration-200"
@@ -299,6 +310,7 @@ export function FloatingChat() {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

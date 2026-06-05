@@ -8,20 +8,20 @@ import { cn } from "@/frontend/utils/utils";
 import { useAppStore } from "@/frontend/context/store";
 import { getDefaultAdminFarmerId, getManagedFarmers, getVisibleFarmsForViewer } from "@/frontend/utils/dataScope";
 import {
-  LayoutDashboard,
-  Sprout,
-  Cpu,
-  CalendarClock,
   AlertTriangle,
   BarChart3,
   BrainCircuit,
-  ClipboardList,
-  Users,
-  Settings2,
-  LogOut,
-  X,
+  CalendarClock,
   ChevronsUpDown,
+  ClipboardList,
+  Cpu,
+  LayoutDashboard,
+  LogOut,
   Plus,
+  Settings2,
+  Sprout,
+  Users,
+  X,
 } from "lucide-react";
 import type { UserRole } from "@/types";
 
@@ -51,7 +51,12 @@ const navItems: Array<{
 const sections = ["CHÍNH", "QUẢN LÝ", "PHÂN TÍCH", "HỆ THỐNG"];
 
 function getInitials(name: string) {
-  return name.split(" ").slice(-2).map((part) => part[0]).join("").toUpperCase();
+  return name
+    .split(" ")
+    .slice(-2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
 }
 
 export function Sidebar() {
@@ -90,6 +95,7 @@ export function Sidebar() {
     () => new Map(gardens.map((garden) => [garden.id, garden.farmId ?? null])),
     [gardens],
   );
+
   const unhandledAlerts = alerts.filter((alert) => {
     if (alert.status !== "DETECTED") return false;
     const farmId = alert.farmId ?? gardenFarmMap.get(alert.gardenId) ?? null;
@@ -111,6 +117,7 @@ export function Sidebar() {
       setCurrentFarmId(visibleFarms[0].id);
       return;
     }
+
     if (role === "FARMER" && visibleFarms.length === 1 && pathname === "/farms") {
       router.replace(`/farms/${visibleFarms[0].id}`);
     }
@@ -156,10 +163,10 @@ export function Sidebar() {
             <Image src="/mushealy-logo.png" alt="Mushealy" width={24} height={24} className="object-contain" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[1rem] font-bold leading-none text-[#FFF9E8]">Mushealy</p>
-            <p className="mt-0.5 text-[0.625rem] uppercase tracking-widest text-[#F4EBD0]/75">Smart Farm System</p>
+            <p className="text-[1rem] font-bold leading-none text-white">Mushealy</p>
+            <p className="mt-0.5 text-[0.625rem] uppercase tracking-widest text-white/75">Smart Farm System</p>
           </div>
-          <button onClick={toggleSidebar} className="text-[#FFF9E8]/75 hover:text-[#FFF9E8] lg:hidden">
+          <button onClick={toggleSidebar} className="text-white/75 hover:text-white lg:hidden">
             <X size={18} />
           </button>
         </div>
@@ -169,10 +176,7 @@ export function Sidebar() {
             <div className="rounded-[10px] border border-white/20 bg-white/10 p-2">
               {role === "ADMIN" && managedFarmers.length > 0 && (
                 <>
-                  <label
-                    htmlFor="sidebar-farmer-select"
-                    className="px-1 text-[0.625rem] font-semibold uppercase tracking-[2px] text-[#FFF7DB]"
-                  >
+                  <label htmlFor="sidebar-farmer-select" className="px-1 text-[0.625rem] font-semibold uppercase tracking-[2px] text-white">
                     Nông dân quản lý
                   </label>
                   <div className="relative mb-2 mt-1">
@@ -181,7 +185,7 @@ export function Sidebar() {
                       name="sidebar-farmer-select"
                       className="w-full appearance-none rounded-[8px] border border-white/20 bg-white px-3 py-2 text-[0.8125rem] font-semibold text-[#1A2E1F] shadow-inner outline-none"
                       value={selectedFarmerId ?? ""}
-                      onChange={(e) => setSelectedFarmerId(e.target.value || null)}
+                      onChange={(event) => setSelectedFarmerId(event.target.value || null)}
                     >
                       {managedFarmers.map((farmer) => (
                         <option key={farmer.id} value={farmer.id} className="text-[#1A2E1F]">
@@ -194,10 +198,7 @@ export function Sidebar() {
                 </>
               )}
 
-              <label
-                htmlFor="sidebar-farm-select"
-                className="px-1 text-[0.625rem] font-semibold uppercase tracking-[2px] text-[#FFF7DB]"
-              >
+              <label htmlFor="sidebar-farm-select" className="px-1 text-[0.625rem] font-semibold uppercase tracking-[2px] text-white">
                 Nông trại hiện tại
               </label>
               <div className="relative mt-1">
@@ -206,9 +207,9 @@ export function Sidebar() {
                   name="sidebar-farm-select"
                   className="w-full appearance-none rounded-[8px] border border-white/20 bg-white px-3 py-2 text-[0.8125rem] font-semibold text-[#1A2E1F] shadow-inner outline-none"
                   value={activeFarm?.id ?? ""}
-                  onChange={(e) => {
-                    setCurrentFarmId(e.target.value);
-                    router.push(`/farms/${e.target.value}`);
+                  onChange={(event) => {
+                    setCurrentFarmId(event.target.value);
+                    router.push(`/farms/${event.target.value}`);
                   }}
                 >
                   {visibleFarms.map((farm) => (
@@ -221,7 +222,7 @@ export function Sidebar() {
               </div>
               <button
                 onClick={() => router.push("/farms/new")}
-                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-[8px] py-1.5 text-[0.75rem] font-medium text-[#FFF7DB] transition-colors hover:bg-white/10 hover:text-white"
+                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-[8px] py-1.5 text-[0.75rem] font-medium text-white transition-colors hover:bg-white/10 hover:text-white"
               >
                 <Plus size={13} />
                 Thêm nông trại
@@ -229,7 +230,7 @@ export function Sidebar() {
             </div>
           ) : (
             <div className="rounded-[10px] border border-white/20 bg-white/10 px-3 py-2">
-              <p className="text-[0.75rem] text-[#F4EBD0]/85">Chưa có nông trại phù hợp ngữ cảnh.</p>
+              <p className="text-[0.75rem] text-white/85">Chưa có nông trại phù hợp ngữ cảnh.</p>
             </div>
           )}
         </div>
@@ -241,7 +242,7 @@ export function Sidebar() {
 
             return (
               <div key={section}>
-                <p className="px-3 pb-1.5 pt-5 text-[0.625rem] font-semibold uppercase tracking-[2px] text-[#F4EBD0]/70">
+                <p className="px-3 pb-1.5 pt-5 text-[0.625rem] font-semibold uppercase tracking-[2px] text-white/70">
                   {section}
                 </p>
                 {items.map((item) => {
@@ -258,11 +259,11 @@ export function Sidebar() {
                         "relative mb-0.5 flex items-center gap-3 rounded-[8px] px-3 py-2.5 text-[0.875rem] font-medium transition-all",
                         active
                           ? "bg-white/15 text-white before:absolute before:bottom-2 before:left-0 before:top-2 before:w-[3px] before:rounded-r-full before:bg-[#52B788]"
-                          : "text-[#FFF7DB] hover:bg-white/10 hover:text-white",
+                          : "text-white hover:bg-white/10 hover:text-white",
                       )}
                     >
-                      <Icon size={18} strokeWidth={1.5} className="flex-shrink-0" />
-                      <span className="flex-1">{item.label}</span>
+                      <Icon size={18} strokeWidth={1.5} className="flex-shrink-0 text-inherit" />
+                      <span className="flex-1 text-white">{item.label}</span>
                       {item.alertKey && unhandledAlerts > 0 && (
                         <span className="rounded-[10px] bg-[#C0392B] px-1.5 py-0.5 text-[0.625rem] font-bold leading-none text-white">
                           {unhandledAlerts}
@@ -281,7 +282,7 @@ export function Sidebar() {
             <span
               className={cn(
                 "rounded-full px-2 py-0.5 text-[0.5625rem] font-bold uppercase tracking-widest",
-                role === "ADMIN" ? "bg-[#52B788]/20 text-[#9BE2BF]" : "bg-[#E67E22]/20 text-[#FFD199]",
+                role === "ADMIN" ? "bg-[#52B788]/20 text-white" : "bg-[#E67E22]/20 text-white",
               )}
             >
               {roleLabel}
@@ -295,10 +296,10 @@ export function Sidebar() {
               {initials}
             </div>
             <div className="min-w-0 flex-1 text-left">
-              <p className="truncate text-[0.8125rem] font-medium text-[#FFF9E8]">{displayName}</p>
-              <p className="text-[0.6875rem] text-[#F4EBD0]/70">{roleLabel}</p>
+              <p className="truncate text-[0.8125rem] font-medium text-white">{displayName}</p>
+              <p className="text-[0.6875rem] text-white/70">{roleLabel}</p>
             </div>
-            <LogOut size={14} className="flex-shrink-0 text-[#F4EBD0]/60 transition-colors group-hover:text-[#FFF9E8]" />
+            <LogOut size={14} className="flex-shrink-0 text-white/60 transition-colors group-hover:text-white" />
           </button>
         </div>
       </aside>
