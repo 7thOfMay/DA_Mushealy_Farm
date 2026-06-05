@@ -1,9 +1,9 @@
 "use client";
 
-import { Bell, Menu, CloudSun } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Bell, CloudSun, Menu } from "lucide-react";
 import { useAppStore } from "@/frontend/context/store";
 import { cn } from "@/frontend/utils/utils";
-import { useState, useEffect } from "react";
 
 interface TopbarProps {
   title: string;
@@ -14,7 +14,7 @@ interface TopbarProps {
 export function Topbar({ title, subtitle, titleVariant = "display" }: TopbarProps) {
   const toggleSidebar = useAppStore((s) => s.toggleSidebar);
   const alerts = useAppStore((s) => s.alerts);
-  const unhandledAlerts = alerts.filter((a) => a.status === "DETECTED").length;
+  const unhandledAlerts = alerts.filter((alert) => alert.status === "DETECTED").length;
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isLive] = useState(true);
 
@@ -26,22 +26,21 @@ export function Topbar({ title, subtitle, titleVariant = "display" }: TopbarProp
   }, []);
 
   return (
-    <header className="flex items-center justify-between py-5 px-8 border-b border-[#E2E8E4] bg-[#F7F8F6]">
-      {/* Left */}
+    <header className="flex items-center justify-between border-b border-[#E2E8E4] bg-[#F7F8F6] px-8 py-5">
       <div className="flex items-center gap-4">
         <button
           onClick={toggleSidebar}
-          className="lg:hidden p-2 rounded-[8px] hover:bg-[#E2E8E4] transition-colors"
+          className="rounded-[8px] p-2 transition-colors hover:bg-[#E2E8E4] lg:hidden"
         >
           <Menu size={20} className="text-[#1A2E1F]" />
         </button>
         <div>
           <h1
             className={cn(
-              "text-[#1A2E1F] leading-tight",
+              "leading-tight text-[#1A2E1F]",
               titleVariant === "display"
                 ? "text-[1.75rem]"
-                : "text-[1.625rem] font-semibold tracking-tight"
+                : "text-[1.625rem] font-semibold tracking-tight",
             )}
             style={titleVariant === "display"
               ? { fontFamily: "'Instrument Serif', serif", fontStyle: "italic" }
@@ -50,19 +49,17 @@ export function Topbar({ title, subtitle, titleVariant = "display" }: TopbarProp
             {title}
           </h1>
           {subtitle && (
-            <p className="text-[0.8125rem] text-[#5C7A6A] mt-0.5">{subtitle}</p>
+            <p className="mt-0.5 text-[0.8125rem] text-[#5C7A6A]">{subtitle}</p>
           )}
         </div>
       </div>
 
-      {/* Right */}
       <div className="flex items-center gap-3">
-        {/* Live badge */}
-        <div className="hidden sm:flex items-center gap-1.5 bg-white border border-[#E2E8E4] rounded-[20px] px-3 py-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+        <div className="hidden items-center gap-1.5 rounded-[20px] border border-[#E2E8E4] bg-white px-3 py-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] sm:flex">
           <span
             className={cn(
-              "w-1.5 h-1.5 rounded-full",
-              isLive ? "bg-[#27AE60] animate-pulse-dot" : "bg-[#E67E22]"
+              "h-1.5 w-1.5 rounded-full",
+              isLive ? "animate-pulse-dot bg-[#27AE60]" : "bg-[#E67E22]",
             )}
           />
           <span className="text-[0.6875rem] font-semibold text-[#5C7A6A]">
@@ -72,17 +69,15 @@ export function Topbar({ title, subtitle, titleVariant = "display" }: TopbarProp
           </span>
         </div>
 
-        {/* Weather pill */}
-        <div className="hidden md:flex items-center gap-1.5 bg-white border border-[#E2E8E4] rounded-[20px] px-3 py-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+        <div className="hidden items-center gap-1.5 rounded-[20px] border border-[#E2E8E4] bg-white px-3 py-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] md:flex">
           <CloudSun size={14} className="text-[#F39C12]" />
           <span className="text-[0.6875rem] font-semibold text-[#5C7A6A]">28°C · Nắng</span>
         </div>
 
-        {/* Notification bell */}
-        <button className="relative p-2 rounded-[8px] hover:bg-[#E2E8E4] transition-colors">
+        <button className="relative rounded-[8px] p-2 transition-colors hover:bg-[#E2E8E4]">
           <Bell size={18} className="text-[#5C7A6A]" />
           {unhandledAlerts > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#C0392B] rounded-full flex items-center justify-center text-white text-[0.5625rem] font-bold leading-none">
+            <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#C0392B] text-[0.5625rem] font-bold leading-none text-white">
               {unhandledAlerts}
             </span>
           )}

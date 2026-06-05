@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { BrainCircuit, MessageCircle, X, Send, Wrench, Bot, User } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Bot, BrainCircuit, MessageCircle, Send, User, Wrench, X } from "lucide-react";
 import { cn } from "@/frontend/utils/utils";
 import { useAppStore } from "@/frontend/context/store";
 
@@ -15,38 +15,34 @@ interface ChatMessage {
 const now = () =>
   new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
 
-// ── Mock AI initial messages ──────────────────────────────────────────────────
 const AI_INIT: ChatMessage[] = [
   {
     id: "a0",
     from: "bot",
-    text: "Xin chào! Tôi là trợ lý AI NôngTech 🌿 Tôi có thể giúp bạn chẩn đoán bệnh cây, phân tích dữ liệu cảm biến hoặc đưa ra lịch chăm sóc tối ưu.",
+    text: "Xin chào! Tôi là trợ lý AI NôngTech. Tôi có thể giúp bạn chẩn đoán bệnh cây, phân tích dữ liệu cảm biến hoặc đưa ra lịch chăm sóc tối ưu.",
     time: "08:00",
   },
 ];
 
-// ── Mock Technician initial messages ─────────────────────────────────────────
 const TECH_INIT: ChatMessage[] = [
   {
     id: "t0",
     from: "bot",
-    text: "Xin chào! Tôi là kỹ thuật viên Minh Cường 👨‍🔧 Tôi trực từ 7:00–17:00. Bạn đang gặp vấn đề gì với vườn?",
+    text: "Xin chào! Tôi là kỹ thuật viên Minh Cường. Tôi trực từ 7:00-17:00. Bạn đang gặp vấn đề gì với vườn?",
     time: "08:00",
   },
 ];
 
-// ── Quick AI auto-replies ─────────────────────────────────────────────────────
 const AI_REPLIES = [
-  "Dựa trên dữ liệu cảm biến, nhiệt độ vườn Cà Chua đang **32.1°C** — cao hơn ngưỡng tối ưu. Bạn có muốn tôi điều chỉnh lịch tưới không?",
-  "Tôi nhận thấy độ ẩm đất ở vườn Cải Xanh đang ở mức 67% — trong ngưỡng tốt. Không cần tưới thêm trong 4 giờ tới.",
+  "Dựa trên dữ liệu cảm biến, nhiệt độ vườn Cà Chua đang **32.1°C** - cao hơn ngưỡng tối ưu. Bạn có muốn tôi điều chỉnh lịch tưới không?",
+  "Tôi nhận thấy độ ẩm đất ở vườn Cải Xanh đang ở mức 67% - trong ngưỡng tốt. Không cần tưới thêm trong 4 giờ tới.",
   "Theo lịch sử 24h, ánh sáng hôm nay thấp hơn trung bình 18%. Nếu mưa kéo dài, bạn nên bật đèn bổ sung.",
   "Tôi đã phân tích: xác suất thiếu nước trên vườn Cà Chua là 78%. Khuyến nghị tưới thêm 15 phút vào 14:00 hôm nay.",
 ];
 
-// ── Quick Technician auto-replies ─────────────────────────────────────────────
 const TECH_REPLIES = [
-  "Tôi hiểu rồi, để tôi kiểm tra lại hệ thống bơm cho bạn. Thường mất khoảng 5–10 phút.",
-  "Cảm ơn bạn đã báo! Tôi sẽ gửi lệnh reset thiết bị từ xa ngay bây giờ.",
+  "Tôi hiểu rồi, để tôi kiểm tra lại hệ thống bơm cho bạn. Thường mất khoảng 5-10 phút.",
+  "Cảm ơn bạn đã báo. Tôi sẽ gửi lệnh reset thiết bị từ xa ngay bây giờ.",
   "Bạn có thể chụp ảnh lá cây gửi lên AI Module để tôi xem thêm không?",
   "Vấn đề này có thể do cảm biến lỗi. Tôi sẽ đăng ký thay thế trong buổi bảo trì thứ 6 tuần này.",
 ];
@@ -102,17 +98,17 @@ function ChatPanel({ type, farmContext, onClose }: PanelProps) {
       text,
       time: now(),
     };
-    setMessages((m) => [...m, userMsg]);
+    setMessages((current) => [...current, userMsg]);
     setTyping(true);
 
-    await new Promise((r) => setTimeout(r, 1200 + Math.random() * 800));
+    await new Promise((resolve) => setTimeout(resolve, 1200 + Math.random() * 800));
 
     const reply = replies[replyIndexRef.current % replies.length];
-    replyIndexRef.current++;
+    replyIndexRef.current += 1;
 
     setTyping(false);
-    setMessages((m) => [
-      ...m,
+    setMessages((current) => [
+      ...current,
       { id: (Date.now() + 1).toString(), from: "bot", text: reply, time: now() },
     ]);
   };
@@ -124,98 +120,90 @@ function ChatPanel({ type, farmContext, onClose }: PanelProps) {
   const BotIcon = isAI ? Bot : Wrench;
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
+    <div className="flex h-full flex-col">
       <div
-        className="flex items-center gap-3 px-4 py-3 rounded-t-[16px] flex-shrink-0"
+        className="flex flex-shrink-0 items-center gap-3 rounded-t-[16px] px-4 py-3"
         style={{ backgroundColor: accentColor }}
       >
-        <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/20">
           <BotIcon size={18} className="text-white" />
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-white font-semibold text-[0.875rem] leading-none">{title}</p>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#52B788] animate-pulse" />
-            <p className="text-white/70 text-[0.6875rem]">{subtitle}</p>
+        <div className="min-w-0 flex-1">
+          <p className="text-[0.875rem] font-semibold leading-none text-white">{title}</p>
+          <div className="mt-0.5 flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#52B788]" />
+            <p className="text-[0.6875rem] text-white/70">{subtitle}</p>
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="text-white/60 hover:text-white transition-colors"
-        >
+        <button onClick={onClose} className="text-white/60 transition-colors hover:text-white">
           <X size={18} />
         </button>
       </div>
-      <div className="px-4 py-2 border-b border-[#E2E8E4] bg-white">
+
+      <div className="border-b border-[#E2E8E4] bg-white px-4 py-2">
         <p className="text-[0.6875rem] text-[#5C7A6A]">
           Bối cảnh: <span className="font-semibold text-[#1A2E1F]">{farmContext}</span>
         </p>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-[#F7F8F6]">
-        {messages.map((msg) => (
+      <div className="flex-1 space-y-3 overflow-y-auto bg-[#F7F8F6] px-4 py-3">
+        {messages.map((message) => (
           <div
-            key={msg.id}
-            className={cn("flex gap-2 items-end", msg.from === "user" ? "flex-row-reverse" : "flex-row")}
+            key={message.id}
+            className={cn("flex items-end gap-2", message.from === "user" ? "flex-row-reverse" : "flex-row")}
           >
-            {msg.from === "bot" && (
+            {message.from === "bot" && (
               <div
-                className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mb-0.5"
+                className="mb-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full"
                 style={{ backgroundColor: accentLight }}
               >
                 <BotIcon size={12} style={{ color: accentColor }} />
               </div>
             )}
-            {msg.from === "user" && (
-              <div className="w-6 h-6 rounded-full bg-[#E2E8E4] flex items-center justify-center flex-shrink-0 mb-0.5">
+            {message.from === "user" && (
+              <div className="mb-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#E2E8E4]">
                 <User size={12} className="text-[#5C7A6A]" />
               </div>
             )}
             <div
               className={cn(
-                "max-w-[75%] px-3 py-2 rounded-[12px] text-[0.8125rem] leading-[1.5]",
-                msg.from === "user"
-                  ? "text-white rounded-br-[4px]"
-                  : "text-[#1A2E1F] rounded-bl-[4px] border border-[#E2E8E4]"
+                "max-w-[75%] rounded-[12px] px-3 py-2 text-[0.8125rem] leading-[1.5]",
+                message.from === "user"
+                  ? "rounded-br-[4px] text-white"
+                  : "rounded-bl-[4px] border border-[#E2E8E4] text-[#1A2E1F]",
               )}
-              style={
-                msg.from === "user"
-                  ? { backgroundColor: accentColor }
-                  : { backgroundColor: "white" }
-              }
+              style={message.from === "user" ? { backgroundColor: accentColor } : { backgroundColor: "white" }}
             >
-              {msg.text.split("**").map((part, i) =>
-                i % 2 === 1 ? <strong key={i}>{part}</strong> : part
+              {message.text.split("**").map((part, index) =>
+                index % 2 === 1 ? <strong key={index}>{part}</strong> : part,
               )}
               <p
                 className={cn(
-                  "text-[0.625rem] mt-1",
-                  msg.from === "user" ? "text-white/50 text-right" : "text-[#5C7A6A]"
+                  "mt-1 text-[0.625rem]",
+                  message.from === "user" ? "text-right text-white/50" : "text-[#5C7A6A]",
                 )}
               >
-                {msg.time}
+                {message.time}
               </p>
             </div>
           </div>
         ))}
 
         {typing && (
-          <div className="flex gap-2 items-end">
+          <div className="flex items-end gap-2">
             <div
-              className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
+              className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full"
               style={{ backgroundColor: accentLight }}
             >
               <BotIcon size={12} style={{ color: accentColor }} />
             </div>
-            <div className="bg-white border border-[#E2E8E4] px-4 py-2.5 rounded-[12px] rounded-bl-[4px]">
-              <div className="flex gap-1 items-center h-4">
-                {[0, 1, 2].map((i) => (
+            <div className="rounded-[12px] rounded-bl-[4px] border border-[#E2E8E4] bg-white px-4 py-2.5">
+              <div className="flex h-4 items-center gap-1">
+                {[0, 1, 2].map((index) => (
                   <span
-                    key={i}
-                    className="w-1.5 h-1.5 rounded-full bg-[#5C7A6A] animate-bounce"
-                    style={{ animationDelay: `${i * 150}ms` }}
+                    key={index}
+                    className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#5C7A6A]"
+                    style={{ animationDelay: `${index * 150}ms` }}
                   />
                 ))}
               </div>
@@ -225,19 +213,18 @@ function ChatPanel({ type, farmContext, onClose }: PanelProps) {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
-      <div className="px-3 py-3 bg-white border-t border-[#E2E8E4] rounded-b-[16px] flex gap-2">
+      <div className="flex gap-2 rounded-b-[16px] border-t border-[#E2E8E4] bg-white px-3 py-3">
         <input
-          className="flex-1 text-[0.8125rem] bg-[#F7F8F6] border border-[#E2E8E4] rounded-[10px] px-3 py-2 outline-none focus:border-[#1B4332] transition-colors placeholder:text-[#5C7A6A]/50"
+          className="flex-1 rounded-[10px] border border-[#E2E8E4] bg-[#F7F8F6] px-3 py-2 text-[0.8125rem] outline-none transition-colors placeholder:text-[#5C7A6A]/50 focus:border-[#1B4332]"
           placeholder={isAI ? "Hỏi về cây trồng, cảm biến..." : "Mô tả vấn đề bạn gặp..."}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && send()}
+          onChange={(event) => setInput(event.target.value)}
+          onKeyDown={(event) => event.key === "Enter" && send()}
         />
         <button
           onClick={send}
           disabled={!input.trim()}
-          className="w-9 h-9 rounded-[10px] flex items-center justify-center transition-colors disabled:opacity-40"
+          className="flex h-9 w-9 items-center justify-center rounded-[10px] transition-colors disabled:opacity-40"
           style={{ backgroundColor: accentColor }}
         >
           <Send size={15} className="text-white" />
@@ -254,75 +241,61 @@ export function FloatingChat() {
   const activeFarm = farms.find((farm) => farm.id === currentFarmId);
   const farmContext = activeFarm ? `${activeFarm.name} (${activeFarm.location})` : "Toàn hệ thống";
 
-  const toggle = (type: ChatType) =>
-    setOpenPanel((prev) => (prev === type ? null : type));
+  const toggle = (type: ChatType) => setOpenPanel((current) => (current === type ? null : type));
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2 sm:bottom-5 sm:right-5">
-      {/* Chat panel */}
+    <div className="fixed bottom-2 right-2 z-50 flex flex-col items-end gap-2 sm:bottom-3 sm:right-3">
       {openPanel && (
         <div
-          className="w-[min(340px,calc(100vw-1.5rem))] h-[480px] rounded-[16px] shadow-[0_8px_40px_rgba(0,0,0,0.18)] flex flex-col overflow-hidden border border-[#E2E8E4] animate-in fade-in slide-in-from-bottom-4 duration-200"
+          className="flex h-[480px] w-[min(340px,calc(100vw-1rem))] flex-col overflow-hidden rounded-[16px] border border-[#E2E8E4] shadow-[0_8px_40px_rgba(0,0,0,0.18)] animate-in fade-in slide-in-from-bottom-4 duration-200"
           style={{ background: "white" }}
         >
           <ChatPanel type={openPanel} farmContext={farmContext} onClose={() => setOpenPanel(null)} />
         </div>
       )}
 
-      {/* Buttons row */}
       <div className="flex flex-col items-end gap-2">
-        {/* Label */}
         {!openPanel && (
-          <p className="text-[0.6875rem] text-[#5C7A6A] bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full border border-[#E2E8E4] shadow-sm hidden sm:block">
+          <p className="hidden rounded-full border border-[#E2E8E4] bg-white/90 px-2.5 py-1 text-[0.6875rem] text-[#5C7A6A] shadow-sm backdrop-blur-sm sm:block">
             Hỗ trợ
           </p>
         )}
 
-        {/* Technician button */}
-        <div className="relative group">
+        <div className="group relative">
           <button
             onClick={() => toggle("tech")}
             className={cn(
-              "w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-105",
-              openPanel === "tech"
-                ? "scale-110 ring-2 ring-offset-2 ring-[#2980B9]"
-                : ""
+              "flex h-10 w-10 items-center justify-center rounded-full shadow-lg transition-all duration-200 hover:scale-105",
+              openPanel === "tech" ? "scale-110 ring-2 ring-[#2980B9] ring-offset-2" : "",
             )}
-            style={{ backgroundColor: openPanel === "tech" ? "#1a6fa8" : "#2980B9" }}
+            style={{ backgroundColor: openPanel === "tech" ? "#1A6FA8" : "#2980B9" }}
             title="Chat với kỹ thuật viên"
           >
             <MessageCircle size={18} className="text-white" />
           </button>
-          {/* Online dot */}
-          <span className="absolute top-0 right-0 w-3 h-3 bg-[#27AE60] rounded-full border-2 border-white" />
-          {/* Tooltip */}
-          <div className="absolute bottom-14 right-0 bg-[#1A2E1F] text-white text-[0.6875rem] px-2.5 py-1.5 rounded-[6px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+          <span className="absolute right-0 top-0 h-3 w-3 rounded-full border-2 border-white bg-[#27AE60]" />
+          <div className="pointer-events-none absolute bottom-14 right-0 whitespace-nowrap rounded-[6px] bg-[#1A2E1F] px-2.5 py-1.5 text-[0.6875rem] text-white opacity-0 transition-opacity group-hover:opacity-100">
             Chat kỹ thuật viên
-            <div className="absolute -bottom-1 right-4 w-2 h-2 bg-[#1A2E1F] rotate-45" />
+            <div className="absolute -bottom-1 right-4 h-2 w-2 rotate-45 bg-[#1A2E1F]" />
           </div>
         </div>
 
-        {/* AI button */}
-        <div className="relative group">
+        <div className="group relative">
           <button
             onClick={() => toggle("ai")}
             className={cn(
-              "w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-105",
-              openPanel === "ai"
-                ? "scale-110 ring-2 ring-offset-2 ring-[#1B4332]"
-                : ""
+              "flex h-10 w-10 items-center justify-center rounded-full shadow-lg transition-all duration-200 hover:scale-105",
+              openPanel === "ai" ? "scale-110 ring-2 ring-[#1B4332] ring-offset-2" : "",
             )}
             style={{ backgroundColor: openPanel === "ai" ? "#163829" : "#1B4332" }}
             title="Trợ lý AI"
           >
             <BrainCircuit size={18} className="text-white" />
           </button>
-          {/* Pulse dot */}
-          <span className="absolute top-0 right-0 w-3 h-3 bg-[#52B788] rounded-full border-2 border-white animate-pulse" />
-          {/* Tooltip */}
-          <div className="absolute bottom-14 right-0 bg-[#1A2E1F] text-white text-[0.6875rem] px-2.5 py-1.5 rounded-[6px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+          <span className="absolute right-0 top-0 h-3 w-3 animate-pulse rounded-full border-2 border-white bg-[#52B788]" />
+          <div className="pointer-events-none absolute bottom-14 right-0 whitespace-nowrap rounded-[6px] bg-[#1A2E1F] px-2.5 py-1.5 text-[0.6875rem] text-white opacity-0 transition-opacity group-hover:opacity-100">
             Trợ lý AI NôngTech
-            <div className="absolute -bottom-1 right-4 w-2 h-2 bg-[#1A2E1F] rotate-45" />
+            <div className="absolute -bottom-1 right-4 h-2 w-2 rotate-45 bg-[#1A2E1F]" />
           </div>
         </div>
       </div>

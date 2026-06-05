@@ -28,7 +28,7 @@ export default function FarmsPage() {
 
   const visibleFarms = useMemo(
     () => getVisibleFarmsForViewer({ farms, users, loggedInUser, selectedFarmerId }),
-    [farms, users, loggedInUser, selectedFarmerId]
+    [farms, users, loggedInUser, selectedFarmerId],
   );
 
   const filteredFarms = visibleFarms.filter((farm) => {
@@ -40,48 +40,48 @@ export default function FarmsPage() {
   return (
     <div>
       <Topbar
-        title="Danh sÃ¡ch NÃ´ng tráº¡i"
-        subtitle={`${filteredFarms.length} nÃ´ng tráº¡i hiá»ƒn thá»‹`}
+        title="Danh sách nông trại"
+        subtitle={`${filteredFarms.length} nông trại hiển thị`}
         titleVariant="section"
       />
-      <div className="p-8 space-y-5">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex gap-2 flex-wrap">
+      <div className="space-y-5 p-8">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap gap-2">
             {[
-              { id: "all", label: "Táº¥t cáº£" },
-              { id: "active", label: "Äang hoáº¡t Ä‘á»™ng" },
-              { id: "paused", label: "Táº¡m dá»«ng" },
+              { id: "all", label: "Tất cả" },
+              { id: "active", label: "Đang hoạt động" },
+              { id: "paused", label: "Tạm dừng" },
             ].map((item) => (
               <button
                 key={item.id}
                 onClick={() => setFilter(item.id as FarmFilter)}
                 className={cn(
-                  "px-3 py-1.5 rounded-[20px] text-[0.8125rem] font-medium border transition-colors",
+                  "rounded-[20px] border px-3 py-1.5 text-[0.8125rem] font-medium transition-colors",
                   filter === item.id
-                    ? "bg-[#1B4332] text-white border-[#1B4332]"
-                    : "bg-white text-[#5C7A6A] border-[#E2E8E4] hover:border-[#1B4332] hover:text-[#1B4332]"
+                    ? "border-[#1B4332] bg-[#1B4332] text-white"
+                    : "border-[#E2E8E4] bg-white text-[#5C7A6A] hover:border-[#1B4332] hover:text-[#1B4332]",
                 )}
               >
                 {item.label}
               </button>
             ))}
           </div>
-          <Link href="/farms/new" className="btn-primary">+ ThÃªm nÃ´ng tráº¡i</Link>
+          <Link href="/farms/new" className="btn-primary">+ Thêm nông trại</Link>
         </div>
 
         {filteredFarms.length === 0 && (
           <EmptyState
             icon={Sprout}
-            title="ChÆ°a cÃ³ nÃ´ng tráº¡i nÃ o"
+            title="Chưa có nông trại nào"
             description={role === "ADMIN"
-              ? "HÃ£y chá»n nÃ´ng dÃ¢n á»Ÿ sidebar hoáº·c thÃªm nÃ´ng tráº¡i má»›i cho nÃ´ng dÃ¢n Ä‘ang quáº£n lÃ½."
-              : "Báº¡n chÆ°a cÃ³ nÃ´ng tráº¡i nÃ o. HÃ£y thÃªm nÃ´ng tráº¡i Ä‘á»ƒ báº¯t Ä‘áº§u quáº£n lÃ½ há»‡ thá»‘ng 2 cáº¥p Farm/Garden."}
-            action={{ label: "ThÃªm nÃ´ng tráº¡i", onClick: () => router.push("/farms/new") }}
+              ? "Hãy chọn nông dân ở sidebar hoặc thêm nông trại mới cho nông dân đang quản lý."
+              : "Bạn chưa có nông trại nào. Hãy thêm nông trại để bắt đầu quản lý hệ thống 2 cấp Farm/Garden."}
+            action={{ label: "Thêm nông trại", onClick: () => router.push("/farms/new") }}
           />
         )}
 
         {filteredFarms.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {filteredFarms.map((farm) => {
               const farmGardens = gardens.filter((garden) => garden.farmId === farm.id);
               const farmGardenIds = new Set(farmGardens.map((garden) => garden.id));
@@ -93,44 +93,45 @@ export default function FarmsPage() {
                 : farm.status === "warning"
                   ? "#E67E22"
                   : "#27AE60";
+
               return (
-                <div key={farm.id} className="card p-0 overflow-hidden border-l-4" style={{ borderLeftColor: statusColor }}>
+                <div key={farm.id} className="card overflow-hidden border-l-4 p-0" style={{ borderLeftColor: statusColor }}>
                   <div className="p-5">
-                    <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="mb-3 flex items-start justify-between gap-3">
                       <div>
-                        <h3 className="font-bold text-[1.125rem] text-[#1A2E1F] leading-tight">{farm.name}</h3>
+                        <h3 className="text-[1.125rem] font-bold leading-tight text-[#1A2E1F]">{farm.name}</h3>
                         <div className="mt-1 flex items-center gap-2 text-[0.75rem] text-[#5C7A6A]">
                           <MapPin size={12} />
                           <span>{farm.location}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: statusColor }} />
+                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: statusColor }} />
                         <button className="text-[#5C7A6A] hover:text-[#1B4332]">
                           <MoreHorizontal size={14} />
                         </button>
                       </div>
                     </div>
 
-                    <div className="text-[0.8125rem] text-[#5C7A6A] mb-3">
-                      {farmGardens.length} khu vÆ°á»n Â· {farmDevices.length} thiáº¿t bá»‹ Â· {farmAlerts.filter((a) => a.status !== "RESOLVED").length} cáº£nh bÃ¡o
+                    <div className="mb-3 text-[0.8125rem] text-[#5C7A6A]">
+                      {farmGardens.length} khu vườn · {farmDevices.length} thiết bị · {farmAlerts.filter((alert) => alert.status !== "RESOLVED").length} cảnh báo
                     </div>
 
-                    <div className="flex flex-wrap gap-1.5 mb-4">
+                    <div className="mb-4 flex flex-wrap gap-1.5">
                       {cropTags.map((cropTag) => {
-                        const crop = plantTypeInfos.find((item) => item.id === (farmGardens.find((g) => g.cropTypeId === cropTag)?.plantType));
-                        return <Badge key={cropTag} variant="default">{crop?.label ?? "KhÃ¡c"}</Badge>;
+                        const crop = plantTypeInfos.find((item) => item.id === (farmGardens.find((garden) => garden.cropTypeId === cropTag)?.plantType));
+                        return <Badge key={cropTag} variant="default">{crop?.label ?? "Khác"}</Badge>;
                       })}
                     </div>
 
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-[0.6875rem] text-[#5C7A6A]">Cáº­p nháº­t {timeAgo(farm.createdAt)}</p>
+                      <p className="text-[0.6875rem] text-[#5C7A6A]">Cập nhật {timeAgo(farm.createdAt)}</p>
                       <Link
                         href={`/farms/${farm.id}`}
                         onClick={() => setCurrentFarmId(farm.id)}
                         className="btn-primary"
                       >
-                        Xem chi tiáº¿t
+                        Xem chi tiết
                       </Link>
                     </div>
                   </div>
