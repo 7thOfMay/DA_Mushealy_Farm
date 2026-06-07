@@ -33,6 +33,7 @@ const STORAGE_PREFIX = "mushealy-product-tour";
 const VIEWPORT_MARGIN = 16;
 const BUBBLE_WIDTH = 340;
 const BOT_SIZE = 64;
+const SPOTLIGHT_RADIUS = 22;
 
 const TOUR_CONFIGS: TourConfig[] = [
   {
@@ -208,10 +209,19 @@ export function ProductTour() {
   const [isOpen, setIsOpen] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
+  const [viewport, setViewport] = useState({ width: 0, height: 0 });
 
   const activeSteps = config?.steps ?? [];
   const activeStep = activeSteps[stepIndex] ?? null;
   const bubbleLayout = useMemo(() => computeBubbleLayout(rect), [rect]);
+  const spotlightRect = rect
+    ? {
+        x: Math.max(rect.left - 10, 8),
+        y: Math.max(rect.top - 10, 8),
+        width: rect.width + 20,
+        height: rect.height + 20,
+      }
+    : null;
 
   const refreshRect = useCallback(() => {
     if (!activeStep) {
@@ -252,6 +262,16 @@ export function ProductTour() {
 
   const prevStep = useCallback(() => {
     setStepIndex((prev) => Math.max(0, prev - 1));
+  }, []);
+
+  useEffect(() => {
+    const syncViewport = () => {
+      setViewport({ width: window.innerWidth, height: window.innerHeight });
+    };
+
+    syncViewport();
+    window.addEventListener("resize", syncViewport);
+    return () => window.removeEventListener("resize", syncViewport);
   }, []);
 
   useEffect(() => {
@@ -314,16 +334,41 @@ export function ProductTour() {
 
       {isOpen && activeStep && (
         <div className="fixed inset-0 z-[80]">
-          <div className="absolute inset-0 bg-[rgba(7,12,19,0.72)]" onClick={() => closeTour(true)} />
+          <button
+            type="button"
+            aria-label="Dong huong dan"
+            className="absolute inset-0 block h-full w-full cursor-default"
+            onClick={() => closeTour(true)}
+          >
+            <svg className="h-full w-full" width="100%" height="100%" viewBox={`0 0 ${viewport.width} ${viewport.height}`} preserveAspectRatio="none">
+              <defs>
+                <mask id="tour-spotlight-mask">
+                  <rect x="0" y="0" width="100%" height="100%" fill="white" />
+                  {spotlightRect && (
+                    <rect
+                      x={spotlightRect.x}
+                      y={spotlightRect.y}
+                      width={spotlightRect.width}
+                      height={spotlightRect.height}
+                      rx={SPOTLIGHT_RADIUS}
+                      ry={SPOTLIGHT_RADIUS}
+                      fill="black"
+                    />
+                  )}
+                </mask>
+              </defs>
+              <rect x="0" y="0" width="100%" height="100%" fill="rgba(4,8,14,0.82)" mask="url(#tour-spotlight-mask)" />
+            </svg>
+          </button>
 
-          {rect && (
+          {spotlightRect && (
             <div
-              className="pointer-events-none absolute rounded-[22px] border border-[rgba(214,255,226,0.9)] bg-transparent shadow-[0_0_0_9999px_rgba(7,12,19,0.64),0_0_32px_rgba(151,255,187,0.22)] transition-all duration-300"
+              className="pointer-events-none absolute rounded-[22px] border border-[rgba(214,255,226,0.95)] bg-transparent shadow-[0_0_0_1px_rgba(214,255,226,0.3),0_0_28px_rgba(151,255,187,0.24)] transition-all duration-300"
               style={{
-                top: Math.max(rect.top - 10, 8),
-                left: Math.max(rect.left - 10, 8),
-                width: rect.width + 20,
-                height: rect.height + 20,
+                top: spotlightRect.y,
+                left: spotlightRect.x,
+                width: spotlightRect.width,
+                height: spotlightRect.height,
               }}
             />
           )}
