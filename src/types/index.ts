@@ -289,3 +289,79 @@ export interface AIAnalysis {
   recommendation: string;
   timestamp: string;
 }
+
+export type AIChatRole = "user" | "assistant";
+
+export interface AIChatMessage {
+  id: string;
+  role: AIChatRole;
+  content: string;
+  createdAt: string;
+  imageUrl?: string | null;
+}
+
+export interface AIChatSessionSummary {
+  id: string;
+  gardenId: string;
+  gardenName: string;
+  title: string;
+  preview: string;
+  updatedAt: string;
+  messageCount: number;
+}
+
+export interface AIDashboardContext {
+  gardenId: string;
+  gardenName: string;
+  farmId?: string;
+  farmName?: string;
+  plantLabel?: string;
+  status?: string;
+  areaM2?: number | null;
+  latestSensors: {
+    temperature?: number | null;
+    humidityAir?: number | null;
+    humiditySoil?: number | null;
+    light?: number | null;
+    updatedAt?: string | null;
+  };
+  thresholds: {
+    temperature?: { min: number; max: number } | null;
+    humidityAir?: { min: number; max: number } | null;
+    humiditySoil?: { min: number; max: number } | null;
+    light?: { min: number; max: number } | null;
+  };
+  devices: Array<{
+    id: string;
+    name: string;
+    type: DeviceType;
+    status: string;
+    isOn: boolean;
+    lastUpdated?: string | null;
+  }>;
+  schedules: Array<{
+    id: string;
+    deviceName: string;
+    startTime?: string | null;
+    repeat?: string | null;
+    isActive: boolean;
+    durationSeconds?: number | null;
+  }>;
+  alerts: Array<{
+    id: string;
+    severity: AlertSeverity;
+    status: AlertStatus;
+    message: string;
+    detectedAt: string;
+  }>;
+  recentLogs: Array<{
+    id: string;
+    title: string;
+    description: string;
+    createdAt: string;
+  }>;
+}
+
+export interface AIChatSessionDetail extends AIChatSessionSummary {
+  messages: AIChatMessage[];
+}

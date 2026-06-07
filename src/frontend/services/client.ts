@@ -14,6 +14,10 @@ import type {
   SystemLog,
   BackupRecord,
   AIAnalysis,
+  AIChatMessage,
+  AIChatSessionSummary,
+  AIChatSessionDetail,
+  AIDashboardContext,
   GardenSensorSummary,
   ZoneThresholds,
   ChartDataPoint,
@@ -300,6 +304,63 @@ export function apiDownloadBackupUrl(backupId: string): string {
 
 export async function apiGetAIAnalyses(): Promise<AIAnalysis[] | null> {
   return fetchJson<AIAnalysis[]>(`${BASE}/ai`);
+}
+
+export async function apiGetAIChatState(
+  userId: string,
+  gardenId: string,
+  sessionId?: string,
+): Promise<{
+  sessions: AIChatSessionSummary[];
+  dashboard: AIDashboardContext | null;
+  activeSession: AIChatSessionDetail | null;
+  geminiConfigured: boolean;
+} | null> {
+  const params = new URLSearchParams({ userId, gardenId });
+  if (sessionId) params.set("sessionId", sessionId);
+  return fetchJson<{
+    sessions: AIChatSessionSummary[];
+    dashboard: AIDashboardContext | null;
+    activeSession: AIChatSessionDetail | null;
+    geminiConfigured: boolean;
+  }>(`${BASE}/ai/chat?${params.toString()}`);
+}
+
+export async function apiSendAIChatMessage(payload: {
+  userId: string;
+  gardenId: string;
+  sessionId?: string;
+  message: string;
+  imageDataUrl?: string | null;
+}): Promise<{
+  session: AIChatSessionDetail | null;
+  dashboard: AIDashboardContext | null;
+  userMessage: AIChatMessage;
+  assistantMessage: AIChatMessage;
+  geminiConfigured: boolean;
+} | null> {
+  return fetchJson<{
+    session: AIChatSessionDetail | null;
+    dashboard: AIDashboardContext | null;
+    userMessage: AIChatMessage;
+    assistantMessage: AIChatMessage;
+    geminiConfigured: boolean;
+  }>(`${BASE}/ai/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiDeleteAIChatSession(
+  userId: string,
+  sessionId: string,
+): Promise<boolean> {
+  const result = await fetchJson<{ ok: boolean }>(
+    `${BASE}/ai/chat?userId=${encodeURIComponent(userId)}&sessionId=${encodeURIComponent(sessionId)}`,
+    { method: "DELETE" },
+  );
+  return result?.ok ?? false;
 }
 
 export async function apiGetThresholds(): Promise<ZoneThresholds[] | null> {

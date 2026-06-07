@@ -10,6 +10,8 @@ DROP TABLE IF EXISTS data_restorations CASCADE;
 DROP TABLE IF EXISTS data_backups CASCADE;
 DROP TABLE IF EXISTS notifications CASCADE;
 DROP TABLE IF EXISTS system_logs CASCADE;
+DROP TABLE IF EXISTS ai_chat_messages CASCADE;
+DROP TABLE IF EXISTS ai_chat_sessions CASCADE;
 DROP TABLE IF EXISTS ai_detection_events CASCADE;
 DROP TABLE IF EXISTS watering_modes CASCADE;
 DROP TABLE IF EXISTS automation_rule_actions CASCADE;
@@ -524,6 +526,32 @@ CREATE TABLE gateway_sync_queue (
     synced_at            TIMESTAMP
 );
 CREATE INDEX idx_sync_pending ON gateway_sync_queue (synced, recorded_at);
+
+-- ============================================================
+-- 34. AI_CHAT_SESSIONS
+-- ============================================================
+CREATE TABLE ai_chat_sessions (
+    chat_session_id     BIGSERIAL PRIMARY KEY,
+    user_id             INT NOT NULL REFERENCES users(user_id),
+    zone_id             INT NOT NULL REFERENCES farm_zones(zone_id),
+    title               VARCHAR(160) NOT NULL,
+    created_at          TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_ai_chat_sessions_user_zone_updated ON ai_chat_sessions (user_id, zone_id, updated_at DESC);
+
+-- ============================================================
+-- 35. AI_CHAT_MESSAGES
+-- ============================================================
+CREATE TABLE ai_chat_messages (
+    chat_message_id     BIGSERIAL PRIMARY KEY,
+    chat_session_id     BIGINT NOT NULL REFERENCES ai_chat_sessions(chat_session_id) ON DELETE CASCADE,
+    role                VARCHAR(20) NOT NULL CHECK (role IN ('user','assistant')),
+    content             TEXT NOT NULL,
+    image_url           TEXT,
+    created_at          TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_ai_chat_messages_session_created ON ai_chat_messages (chat_session_id, created_at ASC);
 
 -- ============================================================
 -- SEED DATA
