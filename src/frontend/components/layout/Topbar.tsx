@@ -23,6 +23,7 @@ export function Topbar({ title, subtitle, titleVariant = "display" }: TopbarProp
     const interval = setInterval(() => {
       setCurrentTime(new Date());
     }, 60000);
+
     return () => clearInterval(interval);
   }, []);
 
@@ -31,6 +32,7 @@ export function Topbar({ title, subtitle, titleVariant = "display" }: TopbarProp
       toggleSidebarCollapsed();
       return;
     }
+
     toggleSidebar();
   };
 
@@ -40,8 +42,9 @@ export function Topbar({ title, subtitle, titleVariant = "display" }: TopbarProp
 
   return (
     <header className="flex items-center justify-between border-b border-[#E2E8E4] bg-[#F7F8F6] px-8 py-5">
-      <div className="flex items-center gap-4">
+      <div className="flex min-w-0 items-center gap-4">
         <button
+          type="button"
           onClick={handleMenuClick}
           className="rounded-[8px] p-2 transition-colors hover:bg-[#E2E8E4]"
           title="Thu gọn hoặc mở sidebar"
@@ -49,23 +52,25 @@ export function Topbar({ title, subtitle, titleVariant = "display" }: TopbarProp
           <Menu size={20} className="text-[#1A2E1F]" />
         </button>
 
-        <div>
+        <div className="min-w-0">
           <h1
             className={cn(
-              "leading-tight text-[#1A2E1F]",
+              "truncate leading-tight text-[#1A2E1F]",
               titleVariant === "display"
                 ? "text-[1.75rem]"
                 : "text-[1.625rem] font-semibold tracking-tight",
             )}
-            style={titleVariant === "display"
-              ? { fontFamily: "'Instrument Serif', serif", fontStyle: "italic" }
-              : undefined}
+            style={
+              titleVariant === "display"
+                ? { fontFamily: "'Instrument Serif', serif", fontStyle: "italic" }
+                : undefined
+            }
           >
             {title}
           </h1>
-          {subtitle && (
-            <p className="mt-0.5 text-[0.8125rem] text-[#5C7A6A]">{subtitle}</p>
-          )}
+          {subtitle ? (
+            <p className="mt-0.5 truncate text-[0.8125rem] text-[#5C7A6A]">{subtitle}</p>
+          ) : null}
         </div>
       </div>
 
@@ -86,8 +91,9 @@ export function Topbar({ title, subtitle, titleVariant = "display" }: TopbarProp
           </div>
 
           <button
+            type="button"
             onClick={handleOpenTour}
-            className="hidden items-center gap-1.5 rounded-[20px] border border-[#E2E8E4] bg-white px-3 py-1.5 text-[0.6875rem] font-semibold text-[#5C7A6A] shadow-[0_1px_3px_rgba(0,0,0,0.06)] lg:flex"
+            className="inline-flex items-center gap-1.5 rounded-[20px] border border-[#E2E8E4] bg-white px-3 py-1.5 text-[0.6875rem] font-semibold text-[#5C7A6A] shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-colors hover:border-[#1B4332] hover:text-[#1B4332]"
             title="Mở hướng dẫn nhanh cho trang này"
           >
             <HelpCircle size={14} className="text-[#1B4332]" />
@@ -100,13 +106,16 @@ export function Topbar({ title, subtitle, titleVariant = "display" }: TopbarProp
           <span className="text-[0.6875rem] font-semibold text-[#5C7A6A]">28°C · Nắng</span>
         </div>
 
-        <button className="relative rounded-[8px] p-2 transition-colors hover:bg-[#E2E8E4]">
+        <button
+          type="button"
+          className="relative rounded-[8px] p-2 transition-colors hover:bg-[#E2E8E4]"
+        >
           <Bell size={18} className="text-[#5C7A6A]" />
-          {unhandledAlerts > 0 && (
+          {unhandledAlerts > 0 ? (
             <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#C0392B] text-[0.5625rem] font-bold leading-none text-white">
               {unhandledAlerts}
             </span>
-          )}
+          ) : null}
         </button>
       </div>
     </header>
