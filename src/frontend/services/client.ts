@@ -222,26 +222,26 @@ export async function apiGetSchedules(): Promise<Schedule[] | null> {
 }
 
 export async function apiCreateSchedule(
-  gardenId: string, deviceId: string, scheduleType?: string,
+  gardenId: string, deviceId: string, scheduleRepeat?: "daily" | "weekly" | null,
   startTime?: string, endTime?: string, dayOfWeek?: number | null,
   durationSeconds?: number | null, createdBy?: number | null,
 ): Promise<{ ok: boolean; scheduleId?: string } | null> {
   return fetchJson<{ ok: boolean; scheduleId?: string }>(`${BASE}/schedules`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ gardenId, deviceId, scheduleType, startTime, endTime, dayOfWeek, durationSeconds, createdBy }),
+    body: JSON.stringify({ gardenId, deviceId, scheduleRepeat, startTime, endTime, dayOfWeek, durationSeconds, createdBy }),
   });
 }
 
 export async function apiUpdateSchedule(
-  scheduleId: string, scheduleType?: string, startTime?: string,
+  scheduleId: string, scheduleRepeat?: "daily" | "weekly" | null, startTime?: string,
   endTime?: string, dayOfWeek?: number | null, durationSeconds?: number | null,
   isActive?: boolean,
 ): Promise<boolean> {
   const r = await fetchJson<{ ok: boolean }>(`${BASE}/schedules`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ scheduleId, scheduleType, startTime, endTime, dayOfWeek, durationSeconds, isActive }),
+    body: JSON.stringify({ scheduleId, scheduleRepeat, startTime, endTime, dayOfWeek, durationSeconds, isActive }),
   });
   return r?.ok ?? false;
 }

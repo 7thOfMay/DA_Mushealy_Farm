@@ -3,12 +3,14 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { isDbConfigured } from "@/backend/config/db";
 import { fetchAlerts, updateAlertStatus } from "@/backend/services/queries";
+import { ensureMissedIrrigationAlerts } from "@/backend/services/scheduleMonitor";
 
 export async function GET() {
   if (!isDbConfigured()) {
     return NextResponse.json({ error: "Database not configured" }, { status: 503 });
   }
   try {
+    await ensureMissedIrrigationAlerts();
     const alerts = await fetchAlerts();
     return NextResponse.json(alerts);
   } catch (err) {

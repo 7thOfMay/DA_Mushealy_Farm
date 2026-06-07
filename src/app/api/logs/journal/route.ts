@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isDbConfigured, query } from "@/backend/config/db";
+import { ensureMissedIrrigationAlerts } from "@/backend/services/scheduleMonitor";
 
 export const dynamic = "force-dynamic";
 
@@ -180,6 +181,7 @@ export async function GET(request: Request) {
   }
 
   try {
+    await ensureMissedIrrigationAlerts();
     const { searchParams } = new URL(request.url);
     const hours = Math.min(Math.max(parseInt(searchParams.get("hours") ?? "168", 10) || 168, 1), 24 * 30);
     const limit = Math.min(Math.max(parseInt(searchParams.get("limit") ?? "300", 10) || 300, 50), 1000);

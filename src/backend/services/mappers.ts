@@ -504,6 +504,16 @@ export function mapSchedule(row: ScheduleRow): Schedule {
     date: toISOString(row.created_at).split("T")[0],
     repeat,
     isActive: !!row.is_active,
+    timeConfig: scheduleType === "TIME_BASED"
+      ? {
+          days: row.schedule_type === "weekly" && typeof row.day_of_week === "number"
+            ? [row.day_of_week]
+            : [0, 1, 2, 3, 4, 5, 6],
+          startTime,
+          durationMin: Math.max(1, Math.round((row.duration_seconds ?? 0) / 60)),
+          action: "ON",
+        }
+      : undefined,
   };
 }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isDbConfigured } from "@/backend/config/db";
 import { fetchSystemLogs } from "@/backend/services/queries";
+import { ensureMissedIrrigationAlerts } from "@/backend/services/scheduleMonitor";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,7 @@ export async function GET(request: Request) {
   }
 
   try {
+    await ensureMissedIrrigationAlerts();
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get("limit") ?? "100", 10);
     const safeLimit = Math.min(Math.max(1, limit), 500);

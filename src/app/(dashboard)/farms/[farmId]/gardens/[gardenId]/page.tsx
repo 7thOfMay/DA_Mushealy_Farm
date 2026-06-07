@@ -29,6 +29,7 @@ export default function FarmGardenDetailPage() {
   const gardens = useAppStore((state) => state.gardens);
   const devices = useAppStore((state) => state.devices);
   const alerts = useAppStore((state) => state.alerts);
+  const schedules = useAppStore((state) => state.schedules);
   const logs = useAppStore((state) => state.logs);
   const setCurrentFarmId = useAppStore((state) => state.setCurrentFarmId);
 
@@ -46,6 +47,7 @@ export default function FarmGardenDetailPage() {
 
   const gardenDevices = devices.filter((device) => device.gardenId === garden.id);
   const gardenAlerts = alerts.filter((alert) => alert.gardenId === garden.id);
+  const gardenSchedules = schedules.filter((schedule) => schedule.gardenId === garden.id);
   const unresolvedAlerts = gardenAlerts.filter((alert) => alert.status !== "RESOLVED");
   const gardenLogs = logs.filter((log) => log.gardenId === garden.id).slice(0, 8);
 
@@ -117,7 +119,7 @@ export default function FarmGardenDetailPage() {
             <p className="text-[0.75rem] text-[#5C7A6A]">Cập nhật cảm biến: {sensor ? timeAgo(sensor.updatedAt) : "Chưa có dữ liệu"}</p>
             <div className="flex gap-2">
               <Link href={`/farms/${farm.id}/devices`} className="btn-secondary">Thiết bị</Link>
-              <Link href={`/farms/${farm.id}/schedules`} className="btn-secondary">Lịch trình</Link>
+              <Link href={`/farms/${farm.id}/schedules?gardenId=${garden.id}`} className="btn-secondary">Lịch trình</Link>
               <Link href={`/farms/${farm.id}/alerts`} className="btn-secondary">Cảnh báo</Link>
             </div>
           </div>
@@ -183,12 +185,38 @@ export default function FarmGardenDetailPage() {
                       <div className="flex items-start gap-2">
                         <AlertTriangle size={14} className="text-[#C0392B] mt-0.5" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-[0.8125rem] text-[#1A2E1F] font-medium truncate">{alert.message}</p>
+                          <p className="text-[0.8125rem] text-[#1A2E1F] font-medium">{alert.message}</p>
                           <p className="text-[0.6875rem] text-[#5C7A6A] mt-0.5">{formatDateTime(alert.detectedAt)}</p>
                         </div>
                         <Badge variant={alert.status === "DETECTED" ? "danger" : alert.status === "PROCESSING" ? "warn" : "ok"}>
                           {alert.status === "DETECTED" ? "Phát hiện" : alert.status === "PROCESSING" ? "Đang xử lý" : "Đã xử lý"}
                         </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="card p-4">
+              <div className="flex items-center justify-between mb-2 gap-2">
+                <h3 className="font-semibold text-[#1A2E1F]">Lịch tưới của khu</h3>
+                <Link href={`/farms/${farm.id}/schedules?gardenId=${garden.id}&create=1`} className="btn-secondary">
+                  Thiết lập
+                </Link>
+              </div>
+              {gardenSchedules.length === 0 ? (
+                <p className="text-[0.8125rem] text-[#5C7A6A]">Chưa có lịch tưới nào cho khu vườn này.</p>
+              ) : (
+                <div className="space-y-2">
+                  {gardenSchedules.slice(0, 4).map((schedule) => (
+                    <div key={schedule.id} className="rounded-[10px] border border-[#E2E8E4] p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <p className="text-[0.8125rem] text-[#1A2E1F] font-medium">{schedule.name ?? schedule.deviceName}</p>
+                          <p className="text-[0.6875rem] text-[#5C7A6A] mt-0.5">{schedule.startTime} · {schedule.repeat === "weekly" ? "Hàng tuần" : "Hàng ngày"}</p>
+                        </div>
+                        <Badge variant={schedule.isActive ? "ok" : "default"}>{schedule.isActive ? "Đang bật" : "Tạm dừng"}</Badge>
                       </div>
                     </div>
                   ))}

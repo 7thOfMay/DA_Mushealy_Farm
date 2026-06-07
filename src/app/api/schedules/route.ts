@@ -3,12 +3,20 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { isDbConfigured } from "@/backend/config/db";
 import { fetchSchedules, insertSchedule, updateSchedule, deleteSchedule } from "@/backend/services/queries";
+import { ensureMissedIrrigationAlerts } from "@/backend/services/scheduleMonitor";
+
+function parseScheduleId(raw: string) {
+  const normalized = raw.replace(/^sc?/, "");
+  const numeric = parseInt(normalized, 10);
+  return Number.isNaN(numeric) ? null : numeric;
+}
 
 export async function GET() {
   if (!isDbConfigured()) {
     return NextResponse.json({ error: "Database not configured" }, { status: 503 });
   }
   try {
+    await ensureMissedIrrigationAlerts();
     const schedules = await fetchSchedules();
     return NextResponse.json(schedules);
   } catch (err) {
@@ -23,7 +31,7 @@ export async function POST(request: Request) {
   }
   try {
     const body = await request.json() as {
-      gardenId?: string; deviceId?: string; scheduleType?: string;
+      gardenId?: string; deviceId?: string; scheduleRepeat?: string;
       startTime?: string; endTime?: string; dayOfWeek?: number | null;
       durationSeconds?: number | null; createdBy?: number | null;
     };
@@ -36,11 +44,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid IDs" }, { status: 400 });
     }
     const scheduleId = await insertSchedule(
-      numZoneId, numDeviceId, body.scheduleType ?? null,
+      numZoneId, numDeviceId, body.scheduleRepeat ?? null,
       body.startTime ?? null, body.endTime ?? null,
       body.dayOfWeek ?? null, body.durationSeconds ?? null, body.createdBy ?? null,
     );
-    return NextResponse.json({ ok: true, scheduleId: `sc${scheduleId}` });
+    return NextResponse.json({ ok: true, scheduleId: `s${scheduleId}` });
   } catch (err) {
     console.error("[API POST /schedules]", err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
@@ -53,19 +61,19 @@ export async function PUT(request: Request) {
   }
   try {
     const body = await request.json() as {
-      scheduleId?: string; scheduleType?: string; startTime?: string;
+      scheduleId?: string; scheduleRepeat?: string; startTime?: string;
       endTime?: string; dayOfWeek?: number | null; durationSeconds?: number | null;
       isActive?: boolean;
     };
     if (!body.scheduleId) {
       return NextResponse.json({ error: "scheduleId is required" }, { status: 400 });
     }
-    const numId = parseInt(body.scheduleId.replace(/^sc/, ""), 10);
-    if (isNaN(numId)) {
+    const numId = parseScheduleId(body.scheduleId);
+    if (!numId) {
       return NextResponse.json({ error: "Invalid scheduleId" }, { status: 400 });
     }
     await updateSchedule(numId, {
-      schedule_type: body.scheduleType, start_time: body.startTime,
+      schedule_type: body.scheduleRepeat, start_time: body.startTime,
       end_time: body.endTime, day_of_week: body.dayOfWeek,
       duration_seconds: body.durationSeconds, is_active: body.isActive,
     });
@@ -86,8 +94,8 @@ export async function DELETE(request: Request) {
     if (!scheduleId) {
       return NextResponse.json({ error: "scheduleId is required" }, { status: 400 });
     }
-    const numId = parseInt(scheduleId.replace(/^sc/, ""), 10);
-    if (isNaN(numId)) {
+    const numId = parseScheduleId(scheduleId);
+    if (!numId) {
       return NextResponse.json({ error: "Invalid scheduleId" }, { status: 400 });
     }
     await deleteSchedule(numId);
