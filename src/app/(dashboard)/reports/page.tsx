@@ -444,7 +444,7 @@ export default function ReportsPage() {
           </div>
         )}
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3" data-tour="reports-filters">
           <div className="flex flex-wrap items-center gap-2 rounded-[8px] border border-[#E2E8E4] bg-white p-1">
             {RANGE_OPTIONS.map((option) => (
               <button
@@ -511,7 +511,7 @@ export default function ReportsPage() {
 
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               <div className="card p-5">
-                <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="mb-4 flex items-center justify-between gap-3" data-tour="reports-assistant">
                   <div>
                     <h3 className="text-[0.9375rem] font-semibold text-[#1A2E1F]">{"Xu hướng nhiệt độ của "}{selectedGarden.name}</h3>
                     <span className="text-[0.75rem] text-[#5C7A6A]">{selectedRange.label}</span>
@@ -546,7 +546,7 @@ export default function ReportsPage() {
                 </div>
               </div>
 
-              <div className="card p-5">
+              <div className="card p-5" data-tour="reports-main-chart">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
                     <h3 className="text-[0.9375rem] font-semibold text-[#1A2E1F]">{"Nhiệt độ - độ ẩm - ánh sáng theo "}{selectedGarden.name}</h3>
@@ -579,7 +579,7 @@ export default function ReportsPage() {
             </div>
 
             <div className="grid grid-cols-1 gap-4 2xl:grid-cols-4 xl:grid-cols-2">
-              <div className="card p-5">
+              <div className="card p-5" data-tour="reports-distribution">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
                     <h3 className="text-[0.9375rem] font-semibold text-[#1A2E1F]">{"Độ ẩm không khí của "}{selectedGarden.name}</h3>
@@ -606,7 +606,7 @@ export default function ReportsPage() {
                 </div>
               </div>
 
-              <div className="card p-5">
+              <div className="card p-5" data-tour="reports-correlation">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
                     <h3 className="text-[0.9375rem] font-semibold text-[#1A2E1F]">{"Độ ẩm đất của "}{selectedGarden.name}</h3>

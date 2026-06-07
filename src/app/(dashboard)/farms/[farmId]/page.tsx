@@ -33,7 +33,7 @@ export default function FarmDetailPage() {
     <div>
       <Topbar title={farm.name} subtitle={`${farm.location} · ${farm.description ?? "Không có mô tả"}`} />
       <div className="p-8 space-y-6">
-        <div className="card p-5">
+        <div className="card p-5" data-tour="farm-summary">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
               <p className="text-[0.75rem] uppercase tracking-wide text-[#5C7A6A] mb-1">Nông trại / {farm.name}</p>
@@ -67,7 +67,7 @@ export default function FarmDetailPage() {
           </div>
         </div>
 
-        <div>
+        <div data-tour="farm-gardens">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-[1rem] text-[#1A2E1F]">Các khu vườn</h3>
             <Link href={`/farms/${farm.id}/gardens/new`} className="btn-primary">+ Thêm khu vườn</Link>
@@ -85,7 +85,7 @@ export default function FarmDetailPage() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4" data-tour="farm-shortcuts">
           <Link href={`/farms/${farm.id}/devices`} className="card p-4 hover:border-[#1B4332] transition-colors">
             <Cpu size={18} className="text-[#1B4332] mb-2" />
             <p className="font-semibold text-[#1A2E1F]">Thiết bị</p>

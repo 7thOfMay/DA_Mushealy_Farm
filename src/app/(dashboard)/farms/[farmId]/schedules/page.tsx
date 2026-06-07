@@ -328,7 +328,7 @@ export default function FarmSchedulesPage() {
       <Topbar title="Lịch trình tưới" subtitle={`${farm.name} · Chọn khu vườn để cấu hình lịch riêng và theo dõi cảnh báo`} />
 
       <div className="p-8 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3" data-tour="schedule-garden-picker">
           {farmGardens.map((garden) => {
             const gardenScheduleCount = schedules.filter((schedule) => schedule.gardenId === garden.id).length;
             const isActiveGarden = garden.id === selectedGardenId;
@@ -368,7 +368,7 @@ export default function FarmSchedulesPage() {
           <EmptyState icon={CalendarClock} title="Chưa có khu vườn" description="Tạo khu vườn trước để cấu hình lịch tưới riêng." />
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-4">
-            <div className="card p-4">
+            <div className="card p-4" data-tour="schedule-list">
               <div className="flex items-center justify-between gap-2 mb-4">
                 <div>
                   <p className="text-[0.75rem] uppercase tracking-wide text-[#5C7A6A]">Đang chọn</p>
@@ -433,7 +433,7 @@ export default function FarmSchedulesPage() {
             </div>
 
             <div className="space-y-4">
-              <div className="card p-4">
+              <div className="card p-4" data-tour="schedule-calendar">
                 <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
                   <div>
                     <h3 className="font-semibold text-[1rem] text-[#1A2E1F]">Lịch tưới của {selectedGarden.name}</h3>
@@ -447,6 +447,7 @@ export default function FarmSchedulesPage() {
                         setShowCreator(true);
                       }}
                       className="btn-primary"
+                      data-tour="schedule-create"
                     >
                       <Plus size={15} />
                       Thêm lịch tưới
@@ -481,7 +482,7 @@ export default function FarmSchedulesPage() {
               </div>
 
               {selectedSchedule && (
-                <div className="card p-4">
+                <div className="card p-4" data-tour="schedule-detail">
                   <h3 className="font-semibold text-[1rem] text-[#1A2E1F] mb-2">Chi tiết lịch đã chọn</h3>
                   <p className="text-[0.875rem] text-[#1A2E1F] font-medium">{selectedSchedule.name ?? selectedSchedule.deviceName}</p>
                   <p className="text-[0.8125rem] text-[#5C7A6A] mt-1">{selectedSchedule.gardenName} · {selectedSchedule.deviceName}</p>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, CloudSun, Menu } from "lucide-react";
+import { Bell, CloudSun, HelpCircle, Menu } from "lucide-react";
 import { useAppStore } from "@/frontend/context/store";
 import { cn } from "@/frontend/utils/utils";
 
@@ -32,6 +32,10 @@ export function Topbar({ title, subtitle, titleVariant = "display" }: TopbarProp
       return;
     }
     toggleSidebar();
+  };
+
+  const handleOpenTour = () => {
+    window.dispatchEvent(new Event("product-tour:start"));
   };
 
   return (
@@ -84,6 +88,15 @@ export function Topbar({ title, subtitle, titleVariant = "display" }: TopbarProp
           <CloudSun size={14} className="text-[#F39C12]" />
           <span className="text-[0.6875rem] font-semibold text-[#5C7A6A]">28°C · Nắng</span>
         </div>
+
+        <button
+          onClick={handleOpenTour}
+          className="hidden items-center gap-1.5 rounded-[20px] border border-[#E2E8E4] bg-white px-3 py-1.5 text-[0.6875rem] font-semibold text-[#5C7A6A] shadow-[0_1px_3px_rgba(0,0,0,0.06)] lg:flex"
+          title="Mở hướng dẫn nhanh cho trang này"
+        >
+          <HelpCircle size={14} className="text-[#1B4332]" />
+          Hướng dẫn
+        </button>
 
         <button className="relative rounded-[8px] p-2 transition-colors hover:bg-[#E2E8E4]">
           <Bell size={18} className="text-[#5C7A6A]" />

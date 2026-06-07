@@ -324,7 +324,7 @@ export default function LogsPage() {
       <Topbar title="Nhật ký tổng thể" subtitle={`${journal.summary.total} bản ghi đang hiển thị`} />
 
       <div className="space-y-5 p-8">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" data-tour="logs-view-mode">
           {[
             { key: "dashboard" as const, label: "Dashboard nhật ký" },
             { key: "list" as const, label: "Danh sách bản ghi" },
@@ -344,7 +344,7 @@ export default function LogsPage() {
           ))}
         </div>
 
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4" data-tour="logs-summary">
           {[
             { label: "Cảm biến", value: journal.summary.sensor, color: "#1B4332", icon: Waves },
             { label: "Cảnh báo", value: journal.summary.alert, color: "#C0392B", icon: AlertTriangle },
@@ -364,7 +364,7 @@ export default function LogsPage() {
           })}
         </div>
 
-        <div className="card p-4 space-y-4">
+        <div className="card p-4 space-y-4" data-tour="logs-filters">
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_auto_auto_auto]">
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5C7A6A]" />
@@ -476,7 +476,7 @@ export default function LogsPage() {
 
         {viewMode === "dashboard" && (
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-            <div className="card p-5">
+            <div className="card p-5" data-tour="logs-chart">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A]">Biểu đồ lịch sử cảm biến</p>
@@ -540,7 +540,7 @@ export default function LogsPage() {
           </div>
         )}
 
-        <div className={cn("card overflow-hidden", viewMode === "list" ? "min-h-[520px]" : "")}>
+        <div className={cn("card overflow-hidden", viewMode === "list" ? "min-h-[520px]" : "")} data-tour="logs-list">
           {loading ? (
             <div className="p-6 text-[0.875rem] text-[#5C7A6A]">Đang tải nhật ký tổng thể...</div>
           ) : error ? (

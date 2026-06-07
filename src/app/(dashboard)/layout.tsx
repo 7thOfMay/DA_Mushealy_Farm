@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/frontend/components/layout/Sidebar";
+import { ProductTour } from "@/frontend/components/shared/ProductTour";
 import { ToastContainer } from "@/frontend/components/shared/ToastContainer";
 import { FloatingChat } from "@/frontend/components/shared/FloatingChat";
 import { useAppStore } from "@/frontend/context/store";
@@ -70,6 +71,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {children}
         </div>
       </main>
+      <ProductTour />
       <ToastContainer />
       {loggedInUser && <FloatingChat />}
     </div>
