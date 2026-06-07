@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { HelpCircle, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type TourStep = {
@@ -320,18 +320,6 @@ export function ProductTour() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => {
-          setIsOpen(true);
-          setStepIndex(0);
-        }}
-        className="fixed bottom-5 left-5 z-[70] hidden items-center gap-2 rounded-full border border-[#D7E2DB] bg-white/95 px-4 py-2 text-[0.8125rem] font-semibold text-[#1A2E1F] shadow-[0_10px_24px_rgba(0,0,0,0.08)] backdrop-blur sm:flex"
-      >
-        <HelpCircle size={15} className="text-[#1B4332]" />
-        Huong dan trang nay
-      </button>
-
       {isOpen && activeStep && (
         <div className="fixed inset-0 z-[80]">
           <button

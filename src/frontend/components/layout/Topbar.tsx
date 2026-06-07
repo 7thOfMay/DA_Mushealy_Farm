@@ -70,33 +70,35 @@ export function Topbar({ title, subtitle, titleVariant = "display" }: TopbarProp
       </div>
 
       <div className="flex items-center gap-3">
-        <div className="hidden items-center gap-1.5 rounded-[20px] border border-[#E2E8E4] bg-white px-3 py-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] sm:flex">
-          <span
-            className={cn(
-              "h-1.5 w-1.5 rounded-full",
-              isLive ? "animate-pulse-dot bg-[#27AE60]" : "bg-[#E67E22]",
-            )}
-          />
-          <span className="text-[0.6875rem] font-semibold text-[#5C7A6A]">
-            {isLive
-              ? "Đang cập nhật"
-              : `Cập nhật lúc ${currentTime.getHours().toString().padStart(2, "0")}:${currentTime.getMinutes().toString().padStart(2, "0")}`}
-          </span>
+        <div className="hidden items-center gap-2 sm:flex">
+          <div className="flex items-center gap-1.5 rounded-[20px] border border-[#E2E8E4] bg-white px-3 py-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                isLive ? "animate-pulse-dot bg-[#27AE60]" : "bg-[#E67E22]",
+              )}
+            />
+            <span className="text-[0.6875rem] font-semibold text-[#5C7A6A]">
+              {isLive
+                ? "Đang cập nhật"
+                : `Cập nhật lúc ${currentTime.getHours().toString().padStart(2, "0")}:${currentTime.getMinutes().toString().padStart(2, "0")}`}
+            </span>
+          </div>
+
+          <button
+            onClick={handleOpenTour}
+            className="hidden items-center gap-1.5 rounded-[20px] border border-[#E2E8E4] bg-white px-3 py-1.5 text-[0.6875rem] font-semibold text-[#5C7A6A] shadow-[0_1px_3px_rgba(0,0,0,0.06)] lg:flex"
+            title="Mở hướng dẫn nhanh cho trang này"
+          >
+            <HelpCircle size={14} className="text-[#1B4332]" />
+            Hướng dẫn
+          </button>
         </div>
 
         <div className="hidden items-center gap-1.5 rounded-[20px] border border-[#E2E8E4] bg-white px-3 py-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] md:flex">
           <CloudSun size={14} className="text-[#F39C12]" />
           <span className="text-[0.6875rem] font-semibold text-[#5C7A6A]">28°C · Nắng</span>
         </div>
-
-        <button
-          onClick={handleOpenTour}
-          className="hidden items-center gap-1.5 rounded-[20px] border border-[#E2E8E4] bg-white px-3 py-1.5 text-[0.6875rem] font-semibold text-[#5C7A6A] shadow-[0_1px_3px_rgba(0,0,0,0.06)] lg:flex"
-          title="Mở hướng dẫn nhanh cho trang này"
-        >
-          <HelpCircle size={14} className="text-[#1B4332]" />
-          Hướng dẫn
-        </button>
 
         <button className="relative rounded-[8px] p-2 transition-colors hover:bg-[#E2E8E4]">
           <Bell size={18} className="text-[#5C7A6A]" />
