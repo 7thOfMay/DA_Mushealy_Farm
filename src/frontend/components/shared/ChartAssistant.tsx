@@ -96,12 +96,6 @@ export function ChartAssistant({ chartTitle, theoryText, analysisText }: ChartAs
         />
       </button>
 
-      {!open ? (
-        <div className="pointer-events-none absolute right-0 top-full z-20 mt-2 w-max rounded-[10px] bg-[#1A2E1F] px-3 py-1.5 text-[0.75rem] text-white opacity-0 shadow-lg transition group-hover:opacity-100">
-          Bạn muốn tôi hỗ trợ gì với biểu đồ này?
-        </div>
-      ) : null}
-
       {open && popupPosition && typeof document !== "undefined"
         ? createPortal(
             <div
@@ -161,7 +155,9 @@ export function ChartAssistant({ chartTitle, theoryText, analysisText }: ChartAs
 
               <div className="mt-3 flex items-center justify-between gap-2">
                 <div className="text-[0.6875rem] text-[#5C7A6A]">
-                  {speechSupported ? "Có thể đọc giọng nói tiếng Việt." : "Trình duyệt này không hỗ trợ voice."}
+                  {speechSupported
+                    ? "Có thể đọc giọng nói tiếng Việt."
+                    : "Trình duyệt này không hỗ trợ voice."}
                 </div>
 
                 <div className="flex items-center gap-2">
