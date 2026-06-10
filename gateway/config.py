@@ -1,8 +1,13 @@
 import os
+from pathlib import Path
 from urllib.parse import unquote, urlparse
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env.local từ project root (local dev), sau đó .env (fallback)
+_root = Path(__file__).resolve().parent.parent
+load_dotenv(_root / ".env.local", override=False)
+load_dotenv(_root / ".env",       override=False)
+load_dotenv(override=False)  # gateway/.env nếu có
 
 # --- 1. CẤU HÌNH SERVER OHSTEM ---
 MQTT_BROKER = os.getenv("MQTT_BROKER", "mqtt.ohstem.vn")
@@ -11,8 +16,11 @@ MQTT_USERNAME = os.getenv("MQTT_USERNAME", "SmartFarm")
 MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "")
 
 # --- POSTGRESQL DATABASE ---
+# Gateway là long-running process → ưu tiên URL non-pooling để tránh timeout pooler
 DATABASE_URL = (
-    os.getenv("DATABASE_URL")
+    os.getenv("DATABASE_URL_UNPOOLED")        # Neon non-pooling (ưu tiên nhất)
+    or os.getenv("POSTGRES_URL_NON_POOLING")   # Neon alias
+    or os.getenv("DATABASE_URL")               # fallback pooled
     or os.getenv("POSTGRES_URL")
     or os.getenv("POSTGRESQL_URL")
 )
