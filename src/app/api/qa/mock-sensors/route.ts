@@ -186,7 +186,10 @@ async function insertRealtimeBurstRows(
   const valueGroups: string[] = [];
   const sample: Array<{ deviceId: number; value: number; recordedAt: string }> = [];
 
-  devices.slice(0, batchSize).forEach((device, zoneIndex) => {
+  Array.from({ length: batchSize }, (_, index) => {
+    const device = devices[(tickIndex * batchSize + index) % devices.length];
+    return { device, zoneIndex: index };
+  }).forEach(({ device, zoneIndex }) => {
     const offset = inserts.length;
     const value = Number(mockRealtimeValue(device.device_type_id, zoneIndex, tickIndex).toFixed(2));
     const recordedAt = new Date(now.getTime() + zoneIndex * 850);
@@ -222,7 +225,7 @@ export async function POST(request: Request) {
   }
 
   if (action === "realtime") {
-    const totalRows = Math.max(12, Math.min(body.totalRows ?? 100, 240));
+    const totalRows = Math.max(1, Math.min(body.totalRows ?? 100, 240));
     const intervalSeconds = Math.max(1, Math.min(body.intervalSeconds ?? 3, 30));
     const batchSize = Math.max(1, Math.min(body.batchSize ?? 2, devices.length));
     const burstCount = Math.ceil(totalRows / batchSize);
@@ -230,7 +233,9 @@ export async function POST(request: Request) {
     const bursts: Array<{ tick: number; insertedRows: number; sample: Array<{ deviceId: number; value: number; recordedAt: string }> }> = [];
 
     for (let tick = 0; tick < burstCount; tick += 1) {
-      const burst = await insertRealtimeBurstRows(devices, tick, batchSize);
+      const remainingRows = totalRows - insertedRows;
+      const currentBatchSize = Math.min(batchSize, remainingRows);
+      const burst = await insertRealtimeBurstRows(devices, tick, currentBatchSize);
       insertedRows += burst.insertedRows;
       bursts.push({
         tick: tick + 1,
