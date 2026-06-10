@@ -38,8 +38,8 @@ POSTGRES_URL = DATABASE_URL or (
 )
 
 # --- COREIOT ---
-COREIOT_URL = os.getenv("COREIOT_URL", "")
-COREIOT_TOKEN = os.getenv("COREIOT_TOKEN", "")
+COREIOT_URL = "https://app.coreiot.io"
+COREIOT_TOKEN = "1omr8yulbsmbyugm9yof"
 
 # --- MAPPING FEED → TÊN HIỂN THỊ ---
 # Keys are lowercase (used for matching incoming messages after .lower())
