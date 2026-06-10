@@ -11,6 +11,12 @@ import config
 app = Flask(__name__)
 
 
+@app.route("/", methods=["GET", "HEAD"])
+def health_check():
+    """Render health check endpoint."""
+    return jsonify({"status": "ok", "service": "NongTech Gateway"}), 200
+
+
 def get_db_connection():
     """Establish and return a PostgreSQL connection."""
     try:
