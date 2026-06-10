@@ -9,15 +9,28 @@ type SensorDeviceRow = {
   device_type_id: number;
 };
 
+type SeedAction = "seed" | "cleanup" | "realtime";
+
 type SeedRequestBody = {
-  action?: "seed" | "cleanup";
+  action?: SeedAction;
   timestamps?: string[];
   startAt?: string;
   count?: number;
   intervalMinutes?: number;
+  intervalSeconds?: number;
+  batchSize?: number;
+  totalRows?: number;
 };
 
 const SENSOR_TYPE_IDS = [1, 2, 3, 4] as const;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function normalizeTimestamp(value: Date) {
+  return value.toISOString().slice(0, 19).replace("T", " ");
+}
 
 function buildMockTimestamps(body: SeedRequestBody) {
   if (Array.isArray(body.timestamps) && body.timestamps.length > 0) {
@@ -76,6 +89,22 @@ function mockValue(deviceTypeId: number, zoneIndex: number, timeIndex: number) {
   }
 }
 
+function mockRealtimeValue(deviceTypeId: number, zoneIndex: number, tickIndex: number) {
+  const wave = Math.sin((tickIndex + 1) / 2 + zoneIndex);
+  switch (deviceTypeId) {
+    case 1:
+      return 25.2 + zoneIndex * 1.1 + wave * 1.6 + tickIndex * 0.08;
+    case 2:
+      return 64 + zoneIndex * 3.8 + wave * 5.2 - tickIndex * 0.05;
+    case 3:
+      return 44 + zoneIndex * 4.5 + wave * 6.1 - tickIndex * 0.12;
+    case 4:
+      return 14500 + zoneIndex * 2100 + wave * 1800 + tickIndex * 140;
+    default:
+      return 0;
+  }
+}
+
 async function loadTargetDevices() {
   const rows = await query<SensorDeviceRow>(`
     SELECT d.device_id, d.zone_id, d.device_type_id
@@ -119,6 +148,66 @@ async function loadTargetDevices() {
   return devices;
 }
 
+async function insertBulkSeedRows(devices: SensorDeviceRow[], timestamps: Date[]) {
+  const inserts: Array<number | string | boolean | null> = [];
+  const valueGroups: string[] = [];
+
+  devices.forEach((device, zoneIndex) => {
+    timestamps.forEach((timestamp, timeIndex) => {
+      const offset = inserts.length;
+      inserts.push(
+        device.device_id,
+        Number(mockValue(device.device_type_id, zoneIndex, timeIndex).toFixed(2)),
+        normalizeTimestamp(timestamp),
+        false,
+      );
+      valueGroups.push(`($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4})`);
+    });
+  });
+
+  return query<{ sensor_data_id: number; device_id: number; recorded_at: string }>(`
+    INSERT INTO sensor_data (device_id, value, recorded_at, synced)
+    VALUES ${valueGroups.join(", ")}
+    RETURNING sensor_data_id, device_id, recorded_at
+  `, inserts);
+}
+
+async function insertRealtimeBurstRows(
+  devices: SensorDeviceRow[],
+  tickIndex: number,
+  batchSize: number,
+) {
+  const now = new Date();
+  const inserts: Array<number | string | boolean | null> = [];
+  const valueGroups: string[] = [];
+  const sample: Array<{ deviceId: number; value: number; recordedAt: string }> = [];
+
+  devices.slice(0, batchSize).forEach((device, zoneIndex) => {
+    const offset = inserts.length;
+    const value = Number(mockRealtimeValue(device.device_type_id, zoneIndex, tickIndex).toFixed(2));
+    const recordedAt = new Date(now.getTime() + zoneIndex * 850);
+    const normalized = normalizeTimestamp(recordedAt);
+    inserts.push(device.device_id, value, normalized, false);
+    valueGroups.push(`($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4})`);
+    sample.push({
+      deviceId: device.device_id,
+      value,
+      recordedAt: recordedAt.toISOString(),
+    });
+  });
+
+  const inserted = await query<{ sensor_data_id: number; device_id: number; recorded_at: string }>(`
+    INSERT INTO sensor_data (device_id, value, recorded_at, synced)
+    VALUES ${valueGroups.join(", ")}
+    RETURNING sensor_data_id, device_id, recorded_at
+  `, inserts);
+
+  return {
+    insertedRows: inserted.length,
+    sample,
+  };
+}
+
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as SeedRequestBody;
   const action = body.action ?? "seed";
@@ -126,6 +215,40 @@ export async function POST(request: Request) {
   const devices = await loadTargetDevices();
   if (!devices.length) {
     return NextResponse.json({ error: "Không tìm thấy thiết bị cảm biến để mock" }, { status: 400 });
+  }
+
+  if (action === "realtime") {
+    const totalRows = Math.max(12, Math.min(body.totalRows ?? 100, 240));
+    const intervalSeconds = Math.max(1, Math.min(body.intervalSeconds ?? 3, 30));
+    const batchSize = Math.max(1, Math.min(body.batchSize ?? 2, devices.length));
+    const burstCount = Math.ceil(totalRows / batchSize);
+    let insertedRows = 0;
+    const bursts: Array<{ tick: number; insertedRows: number; sample: Array<{ deviceId: number; value: number; recordedAt: string }> }> = [];
+
+    for (let tick = 0; tick < burstCount; tick += 1) {
+      const burst = await insertRealtimeBurstRows(devices, tick, batchSize);
+      insertedRows += burst.insertedRows;
+      bursts.push({
+        tick: tick + 1,
+        insertedRows: burst.insertedRows,
+        sample: burst.sample,
+      });
+
+      if (tick < burstCount - 1) {
+        await sleep(intervalSeconds * 1000);
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      action: "realtime",
+      insertedRows,
+      requestedRows: totalRows,
+      intervalSeconds,
+      batchSize,
+      burstCount,
+      bursts: bursts.slice(0, 12),
+    });
   }
 
   const timestamps = buildMockTimestamps(body);
@@ -137,7 +260,7 @@ export async function POST(request: Request) {
       return `$${index + 1}`;
     });
     const timePlaceholders = timestamps.map((timestamp, index) => {
-      values.push(timestamp.toISOString().slice(0, 19).replace("T", " "));
+      values.push(normalizeTimestamp(timestamp));
       return `$${devices.length + index + 1}`;
     });
     values.push(false);
@@ -159,27 +282,7 @@ export async function POST(request: Request) {
     });
   }
 
-  const inserts: Array<number | string | boolean | null> = [];
-  const valueGroups: string[] = [];
-
-  devices.forEach((device, zoneIndex) => {
-    timestamps.forEach((timestamp, timeIndex) => {
-      const offset = inserts.length;
-      inserts.push(
-        device.device_id,
-        Number(mockValue(device.device_type_id, zoneIndex, timeIndex).toFixed(2)),
-        timestamp.toISOString().slice(0, 19).replace("T", " "),
-        false,
-      );
-      valueGroups.push(`($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4})`);
-    });
-  });
-
-  const inserted = await query<{ sensor_data_id: number; device_id: number; recorded_at: string }>(`
-    INSERT INTO sensor_data (device_id, value, recorded_at, synced)
-    VALUES ${valueGroups.join(", ")}
-    RETURNING sensor_data_id, device_id, recorded_at
-  `, inserts);
+  const inserted = await insertBulkSeedRows(devices, timestamps);
 
   return NextResponse.json({
     ok: true,
