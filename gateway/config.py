@@ -1,7 +1,13 @@
 import os
+from pathlib import Path
+from urllib.parse import unquote, urlparse
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env.local từ project root (local dev), sau đó .env (fallback)
+_root = Path(__file__).resolve().parent.parent
+load_dotenv(_root / ".env.local", override=False)
+load_dotenv(_root / ".env",       override=False)
+load_dotenv(override=False)  # gateway/.env nếu có
 
 # --- 1. CẤU HÌNH SERVER OHSTEM ---
 MQTT_BROKER = os.getenv("MQTT_BROKER", "mqtt.ohstem.vn")
@@ -10,11 +16,38 @@ MQTT_USERNAME = os.getenv("MQTT_USERNAME", "SmartFarm")
 MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "")
 
 # --- POSTGRESQL DATABASE ---
-DB_HOST = os.getenv("DB_HOST", "")          # VD: abc.proxy.rlwy.net
-DB_PORT = int(os.getenv("DB_PORT", "5432"))  # PostgreSQL default
-DB_USER = os.getenv("DB_USER", "postgres")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "")
-DB_NAME = os.getenv("DB_NAME", "smart_farm")
+# Gateway là long-running process → ưu tiên URL non-pooling để tránh timeout pooler
+DATABASE_URL = (
+    os.getenv("DATABASE_URL_UNPOOLED")        # Neon non-pooling (ưu tiên nhất)
+    or os.getenv("POSTGRES_URL_NON_POOLING")   # Neon alias
+    or os.getenv("DATABASE_URL")               # fallback pooled
+    or os.getenv("POSTGRES_URL")
+    or os.getenv("POSTGRESQL_URL")
+)
+
+if DATABASE_URL:
+    parsed = urlparse(DATABASE_URL)
+    DB_HOST = parsed.hostname or ""
+    DB_PORT = int(parsed.port or 5432)
+    DB_USER = unquote(parsed.username or "postgres")
+    DB_PASSWORD = unquote(parsed.password or "")
+    DB_NAME = (parsed.path or "/smart_farm").lstrip("/")
+else:
+    DB_HOST = os.getenv("DB_HOST", "")          # VD: abc.proxy.rlwy.net
+    DB_PORT = int(os.getenv("DB_PORT", "5432"))  # PostgreSQL default
+    DB_USER = os.getenv("DB_USER", "postgres")
+    DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+    DB_NAME = os.getenv("DB_NAME", "smart_farm")
+
+DB_SSLMODE = os.getenv("DB_SSLMODE", "require")
+DB_CONNECT_TIMEOUT = int(os.getenv("DB_CONNECT_TIMEOUT", "10"))
+POSTGRES_URL = DATABASE_URL or (
+    f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+)
+
+# --- COREIOT ---
+COREIOT_URL = "https://app.coreiot.io"
+COREIOT_TOKEN = "1omr8yulbsmbyugm9yof"
 
 # --- MAPPING FEED → TÊN HIỂN THỊ ---
 # Keys are lowercase (used for matching incoming messages after .lower())
@@ -34,6 +67,12 @@ FEED_TO_DEVICE = {
     "v2": 10,   # Cảm biến độ ẩm không khí KV1  (device_id=10)
     "v3": 11,   # Cảm biến độ ẩm đất KV1  (device_id=11)
     "v4": 12,   # Cảm biến ánh sáng KV1  (device_id=12)
+    "temperature": 9,
+    "humidity": 10,
+    "soil": 11,
+    "light": 12,
+    "pump_status": 13,
+    "light_status": 14,
 }
 
 # --- MAPPING device_id → FEED cho điều khiển (actuator) ---

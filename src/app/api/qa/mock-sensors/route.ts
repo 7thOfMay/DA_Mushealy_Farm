@@ -148,7 +148,11 @@ async function loadTargetDevices() {
   return devices;
 }
 
-async function insertBulkSeedRows(devices: SensorDeviceRow[], timestamps: Date[]) {
+async function insertBulkSeedRows(
+  devices: SensorDeviceRow[],
+  timestamps: Date[],
+  synced: boolean,
+) {
   const inserts: Array<number | string | boolean | null> = [];
   const valueGroups: string[] = [];
 
@@ -159,7 +163,7 @@ async function insertBulkSeedRows(devices: SensorDeviceRow[], timestamps: Date[]
         device.device_id,
         Number(mockValue(device.device_type_id, zoneIndex, timeIndex).toFixed(2)),
         normalizeTimestamp(timestamp),
-        false,
+        synced,
       );
       valueGroups.push(`($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4})`);
     });
@@ -282,7 +286,7 @@ export async function POST(request: Request) {
     });
   }
 
-  const inserted = await insertBulkSeedRows(devices, timestamps);
+  const inserted = await insertBulkSeedRows(devices, timestamps, true);
 
   return NextResponse.json({
     ok: true,
