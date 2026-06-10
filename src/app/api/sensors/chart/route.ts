@@ -58,6 +58,48 @@ type BucketStatKey =
   | "garden3Sum"
   | "garden3Count";
 
+type BucketStrategy =
+  | { unit: "minutes"; size: number }
+  | { unit: "seconds"; size: number };
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function resolveBucketStrategy(hours: number, resolution: string | null, bucketSecondsRaw: string | null): BucketStrategy {
+  if (resolution === "realtime") {
+    const parsed = parseInt(bucketSecondsRaw ?? "5", 10);
+    const fallback = hours <= 1 ? 5 : 30;
+    const bucketSeconds = Number.isFinite(parsed) ? parsed : fallback;
+    return {
+      unit: "seconds",
+      size: clamp(bucketSeconds, 1, hours <= 1 ? 60 : 300),
+    };
+  }
+
+  return {
+    unit: "minutes",
+    size: getBucketMinutes(hours),
+  };
+}
+
+function formatBucketTime(date: Date, strategy: BucketStrategy) {
+  if (strategy.unit === "seconds") {
+    return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}:${String(date.getSeconds()).padStart(2, "0")}`;
+  }
+
+  return formatBucketLabel(date, strategy.size);
+}
+
+function floorToResolvedBucket(date: Date, strategy: BucketStrategy) {
+  if (strategy.unit === "seconds") {
+    const bucketMs = strategy.size * 1000;
+    return new Date(Math.floor(date.getTime() / bucketMs) * bucketMs);
+  }
+
+  return floorToBucket(date, strategy.size);
+}
+
 export async function GET(request: Request) {
   if (!isDbConfigured()) {
     return NextResponse.json({ error: "Database not configured" }, { status: 503 });
@@ -67,6 +109,8 @@ export async function GET(request: Request) {
   const gardenIds = searchParams.getAll("gardenId");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
+  const resolution = searchParams.get("resolution");
+  const bucketSeconds = searchParams.get("bucketSeconds");
   const fallbackHours = Math.min(parseInt(searchParams.get("hours") ?? "24", 10) || 24, 24 * 30);
   const derivedHours =
     startDate && endDate
@@ -122,7 +166,7 @@ export async function GET(request: Request) {
         })
       : rows;
 
-  const bucketMinutes = getBucketMinutes(hours);
+  const bucketStrategy = resolveBucketStrategy(hours, resolution, bucketSeconds);
   const gardenIndex = new Map<number, string>();
   zoneIds.forEach((zoneId, index) => gardenIndex.set(zoneId, `garden${index + 1}`));
 
@@ -142,9 +186,9 @@ export async function GET(request: Request) {
     const gardenKey = gardenIndex.get(reading.zone_id);
     if (!gardenKey) continue;
 
-    const bucketDate = floorToBucket(new Date(reading.recorded_at), bucketMinutes);
+    const bucketDate = floorToResolvedBucket(new Date(reading.recorded_at), bucketStrategy);
     const bucketKey = `${sensorType}:${bucketDate.toISOString()}`;
-    const time = formatBucketLabel(bucketDate, bucketMinutes);
+    const time = formatBucketTime(bucketDate, bucketStrategy);
     const bucket = buckets[sensorType];
 
     if (!bucket.has(bucketKey)) {
