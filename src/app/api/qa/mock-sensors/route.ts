@@ -169,7 +169,7 @@ export async function POST(request: Request) {
         device.device_id,
         Number(mockValue(device.device_type_id, zoneIndex, timeIndex).toFixed(2)),
         timestamp.toISOString().slice(0, 19).replace("T", " "),
-        false,
+        true,
       );
       valueGroups.push(`($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4})`);
     });

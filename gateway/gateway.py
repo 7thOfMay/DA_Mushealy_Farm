@@ -29,8 +29,8 @@ def save_sensor_data(device_id, value):
 
     try:
         cursor = conn.cursor()
-        sql = "INSERT INTO sensor_data (device_id, value, created_at) VALUES (%s, %s, %s)"
-        val = (device_id, value, datetime.now())
+        sql = "INSERT INTO sensor_data (device_id, value, recorded_at, synced) VALUES (%s, %s, %s, %s)"
+        val = (device_id, value, datetime.now(), True)
         cursor.execute(sql, val)
         conn.commit()
         print(f"[DB] Successfully inserted: Device {device_id} -> {value}")
