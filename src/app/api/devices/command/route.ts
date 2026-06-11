@@ -1,8 +1,21 @@
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-import { isDbConfigured } from "@/backend/config/db";
+import { isDbConfigured, query } from "@/backend/config/db";
 import { sendDeviceCommand, insertSystemLog } from "@/backend/services/queries";
+
+// Map device_type_id → CoreIoT device key
+const DEVICE_TYPE_TO_COREIOT: Record<number, "pump" | "light"> = {
+  5: "pump",   // pump
+  6: "pump",
+  7: "light",  // led_rgb
+  8: "light",
+  9: "pump",   // fan → pump channel
+  10: "pump",  // valve → pump channel
+};
+
+const GATEWAY_URL =
+  process.env.GATEWAY_URL ?? "https://da-mushealy-farm-1.onrender.com";
 
 export async function POST(request: Request) {
   if (!isDbConfigured()) {
@@ -36,6 +49,29 @@ export async function POST(request: Request) {
     deviceNumId,
     `${body.command} thiết bị #${deviceNumId}`,
   );
+
+  // Gửi lệnh tới CoreIoT thông qua gateway để điều khiển thiết bị vật lý
+  try {
+    const deviceRow = await query<{ device_type_id: number }>(
+      `SELECT device_type_id FROM devices WHERE device_id = $1`,
+      [deviceNumId],
+    );
+    const typeId = deviceRow[0]?.device_type_id;
+    const coreiotDevice = typeId ? DEVICE_TYPE_TO_COREIOT[typeId] : undefined;
+
+    if (coreiotDevice) {
+      const coreiotStatus = body.command === "turn_on" ? "true" : "false";
+      await fetch(`${GATEWAY_URL}/api/control`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ device: coreiotDevice, status: coreiotStatus }),
+        signal: AbortSignal.timeout(8000),
+      });
+    }
+  } catch (err) {
+    // Không fail toàn bộ request nếu gateway timeout (Render free tier có thể sleep)
+    console.warn("[Command] CoreIoT control failed (non-critical):", err);
+  }
 
   return NextResponse.json({ ok: true });
 }
