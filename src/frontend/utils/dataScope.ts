@@ -24,7 +24,7 @@ export function getDefaultAdminFarmerId(users: User[], loggedInUser: User | null
 }
 
 export function getVisibleFarmsForViewer(input: ScopeInput): Farm[] {
-  const { farms, loggedInUser, selectedFarmerId } = input;
+  const { farms, loggedInUser } = input;
 
   if (!loggedInUser) return farms;
 
@@ -36,13 +36,7 @@ export function getVisibleFarmsForViewer(input: ScopeInput): Farm[] {
     return farms.filter((farm) => assigned.has(farm.id));
   }
 
-  // ADMIN: if a specific farmer is selected, show only their farms
-  // Otherwise show ALL farms (admin has full visibility)
-  if (selectedFarmerId) {
-    return farms.filter(
-      (farm) => farm.ownerId === selectedFarmerId || farm.ownerId === loggedInUser.id,
-    );
-  }
+  // ADMIN: always sees all farms (full visibility regardless of selectedFarmerId)
   return farms;
 }
 
