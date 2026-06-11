@@ -63,16 +63,16 @@ FEEDS = {
 # --- MAPPING FEED → device_id TRONG DATABASE ---
 # Keys are lowercase (matched after .lower() in on_message)
 FEED_TO_DEVICE = {
-    "v1": 9,    # Cảm biến nhiệt độ KV1  (device_id=9)
-    "v2": 10,   # Cảm biến độ ẩm không khí KV1  (device_id=10)
-    "v3": 11,   # Cảm biến độ ẩm đất KV1  (device_id=11)
-    "v4": 12,   # Cảm biến ánh sáng KV1  (device_id=12)
-    "temperature": 9,
-    "humidity": 10,
-    "soil": 11,
-    "light": 12,
-    "pump_status": 13,
-    "light_status": 14,
+    "v1": 1,    # Cảm biến nhiệt độ KV1  (device_id=9)
+    "v2": 2,   # Cảm biến độ ẩm không khí KV1  (device_id=10)
+    "v3": 3,   # Cảm biến độ ẩm đất KV1  (device_id=11)
+    "v4": 4,   # Cảm biến ánh sáng KV1  (device_id=12)
+    "temperature": 1,
+    "humidity": 2,
+    "soil": 3,
+    "light": 4,
+    "pump_status": 5,
+    "light_status": 8,
 }
 
 # --- MAPPING device_id → FEED cho điều khiển (actuator) ---
