@@ -24,7 +24,7 @@ export function getDefaultAdminFarmerId(users: User[], loggedInUser: User | null
 }
 
 export function getVisibleFarmsForViewer(input: ScopeInput): Farm[] {
-  const { farms, users, loggedInUser, selectedFarmerId } = input;
+  const { farms, loggedInUser, selectedFarmerId } = input;
 
   if (!loggedInUser) return farms;
 
