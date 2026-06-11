@@ -9,12 +9,6 @@ load_dotenv(_root / ".env.local", override=False)
 load_dotenv(_root / ".env",       override=False)
 load_dotenv(override=False)  # gateway/.env nếu có
 
-# --- 1. CẤU HÌNH SERVER OHSTEM ---
-MQTT_BROKER = os.getenv("MQTT_BROKER", "mqtt.ohstem.vn")
-MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
-MQTT_USERNAME = os.getenv("MQTT_USERNAME", "SmartFarm")
-MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "")
-
 # --- POSTGRESQL DATABASE ---
 # Gateway là long-running process → ưu tiên URL non-pooling để tránh timeout pooler
 DATABASE_URL = (
@@ -46,19 +40,8 @@ POSTGRES_URL = DATABASE_URL or (
 )
 
 # --- COREIOT ---
-COREIOT_URL = os.getenv("COREIOT_URL", "https://app.coreiot.io")
-COREIOT_TOKEN = os.getenv("COREIOT_TOKEN", "")
-
-# --- MAPPING FEED → TÊN HIỂN THỊ ---
-# Keys are lowercase (used for matching incoming messages after .lower())
-FEEDS = {
-    "v1": "Temperature",
-    "v2": "Humidity",
-    "v3": "Soil Moisture",
-    "v4": "LUX",
-    "v5": "GDD",
-    "v10": "Pump 1",
-}
+COREIOT_URL = "https://app.coreiot.io"
+COREIOT_TOKEN = "1omr8yulbsmbyugm9yof"
 
 # --- MAPPING FEED → device_id TRONG DATABASE ---
 # Keys are lowercase (matched after .lower() in on_message)
