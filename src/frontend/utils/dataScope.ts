@@ -36,27 +36,14 @@ export function getVisibleFarmsForViewer(input: ScopeInput): Farm[] {
     return farms.filter((farm) => assigned.has(farm.id));
   }
 
-  // ADMIN: show farms for selected farmer, plus farms owned by admin themselves
-  const managedFarmers = getManagedFarmers(users, loggedInUser);
-  const allowedFarmerIds = new Set(managedFarmers.map((farmer) => farmer.id));
-
-  // Always include admin's own ID so farms they created are visible
-  allowedFarmerIds.add(loggedInUser.id);
-
-  if (allowedFarmerIds.size === 0) return [];
-
-  const effectiveFarmerId = selectedFarmerId && allowedFarmerIds.has(selectedFarmerId)
-    ? selectedFarmerId
-    : null;
-
-  // If a specific farmer is selected, show their farms + admin's own farms
-  // Otherwise show ALL farms the admin can see
-  if (effectiveFarmerId) {
+  // ADMIN: if a specific farmer is selected, show only their farms
+  // Otherwise show ALL farms (admin has full visibility)
+  if (selectedFarmerId) {
     return farms.filter(
-      (farm) => farm.ownerId === effectiveFarmerId || farm.ownerId === loggedInUser.id,
+      (farm) => farm.ownerId === selectedFarmerId || farm.ownerId === loggedInUser.id,
     );
   }
-  return farms.filter((farm) => allowedFarmerIds.has(farm.ownerId));
+  return farms;
 }
 
 export function getVisibleFarmIdSet(input: ScopeInput): Set<string> {
