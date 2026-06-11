@@ -123,6 +123,8 @@ export async function GET(request: Request) {
   const gardenIds = searchParams.getAll("gardenId");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
+  const startAt = searchParams.get("startAt");
+  const endAt = searchParams.get("endAt");
   const windowMinutesRaw = searchParams.get("windowMinutes");
   const resolution = searchParams.get("resolution");
   const bucketSeconds = searchParams.get("bucketSeconds");
@@ -130,7 +132,15 @@ export async function GET(request: Request) {
   const windowMinutes = Math.min(Math.max(parseInt(windowMinutesRaw ?? "0", 10) || 0, 0), 24 * 60 * 30);
   const fallbackHours = Math.min(parseFloat(searchParams.get("hours") ?? "24") || 24, 24 * 30);
   const derivedHours =
-    startDate && endDate
+    startAt && endAt
+      ? Math.min(
+          Math.max(
+            0.01,
+            (new Date(endAt).getTime() - new Date(startAt).getTime()) / (60 * 60 * 1000),
+          ),
+          24 * 30,
+        )
+      : startDate && endDate
       ? Math.min(
           Math.max(
             1,
@@ -174,7 +184,13 @@ export async function GET(request: Request) {
   }
 
   const filteredRows =
-    startDate && endDate
+    startAt && endAt
+      ? rows.filter((row) => {
+          const reading = row as { recorded_at: Date | string };
+          const recordedAt = new Date(reading.recorded_at).getTime();
+          return recordedAt >= new Date(startAt).getTime() && recordedAt <= new Date(endAt).getTime();
+        })
+      : startDate && endDate
       ? rows.filter((row) => {
           const reading = row as { recorded_at: Date | string };
           const recordedAt = new Date(reading.recorded_at).getTime();

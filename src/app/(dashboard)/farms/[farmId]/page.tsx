@@ -7,7 +7,6 @@ import { Badge, EmptyState } from "@/frontend/components/shared/index";
 import { useAppStore } from "@/frontend/context/store";
 
 import { GardenStation } from "@/frontend/components/dashboard/GardenStation";
-import { RealtimeFarmDashboard } from "@/frontend/components/dashboard/RealtimeFarmDashboard";
 import { Cpu, Sprout, AlertTriangle, Activity, ShieldAlert } from "lucide-react";
 
 export default function FarmDetailPage() {
@@ -67,9 +66,6 @@ export default function FarmDetailPage() {
             </div>
           </div>
         </div>
-
-        {farmGardens.length > 0 ? <RealtimeFarmDashboard farmGardens={farmGardens} /> : null}
-
         <div data-tour="farm-gardens">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-[1rem] text-[#1A2E1F]">Các khu vườn</h3>
