@@ -46,8 +46,8 @@ POSTGRES_URL = DATABASE_URL or (
 )
 
 # --- COREIOT ---
-COREIOT_URL = "https://app.coreiot.io"
-COREIOT_TOKEN = "1omr8yulbsmbyugm9yof"
+COREIOT_URL = os.getenv("COREIOT_URL", "https://app.coreiot.io")
+COREIOT_TOKEN = os.getenv("COREIOT_TOKEN", "")
 
 # --- MAPPING FEED → TÊN HIỂN THỊ ---
 # Keys are lowercase (used for matching incoming messages after .lower())
@@ -63,22 +63,12 @@ FEEDS = {
 # --- MAPPING FEED → device_id TRONG DATABASE ---
 # Keys are lowercase (matched after .lower() in on_message)
 FEED_TO_DEVICE = {
-    "v1": 1,    # Cảm biến nhiệt độ KV1  (device_id=9)
-    "v2": 2,   # Cảm biến độ ẩm không khí KV1  (device_id=10)
-    "v3": 3,   # Cảm biến độ ẩm đất KV1  (device_id=11)
-    "v4": 4,   # Cảm biến ánh sáng KV1  (device_id=12)
     "temperature": 1,
     "humidity": 2,
     "soil": 3,
     "light": 4,
     "pump_status": 5,
     "light_status": 8,
-}
-
-# --- MAPPING device_id → FEED cho điều khiển (actuator) ---
-# Values are UPPERCASE (OhStem MQTT topics are case-sensitive)
-DEVICE_TO_FEED = {
-    13: "V10",   # Máy bơm KV1  (device_id=13)
 }
 
 # --- CẤU HÌNH GATEWAY ---
