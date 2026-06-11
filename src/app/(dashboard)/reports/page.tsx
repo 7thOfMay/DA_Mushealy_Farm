@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Bar,
   CartesianGrid,
   Cell,
   ComposedChart,
@@ -758,8 +757,8 @@ export default function ReportsPage() {
                         <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
                         <Tooltip />
                         <Legend />
-                        <Bar yAxisId="left" dataKey="humiditySoil" fill="#2980B9" name="Độ ẩm đất (%)" radius={[4, 4, 0, 0]} />
-                        <Line yAxisId="left" type="monotone" dataKey="temperature" stroke="#E67E22" strokeWidth={2} dot={false} name="Nhiệt độ (°C)" />
+                        <Line yAxisId="left" type={isShortRange ? "stepAfter" : "monotone"} dataKey="humiditySoil" stroke="#2980B9" strokeWidth={2} dot={isShortRange ? { r: 2 } : false} name="Độ ẩm đất (%)" connectNulls />
+                        <Line yAxisId="left" type={isShortRange ? "stepAfter" : "monotone"} dataKey="temperature" stroke="#E67E22" strokeWidth={2} dot={isShortRange ? { r: 2 } : false} name="Nhiệt độ (°C)" connectNulls />
                         <Line yAxisId="right" type="monotone" dataKey="light" stroke="#F39C12" strokeWidth={2} dot={false} name="Ánh sáng (k lux)" />
                       </ComposedChart>
                     </ResponsiveContainer>

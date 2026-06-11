@@ -177,7 +177,10 @@ export async function GET(request: Request) {
 
   let rows;
   try {
-    rows = await fetchSensorChartData(zoneIds, hours);
+    rows = await fetchSensorChartData(zoneIds, hours, {
+      startAt,
+      endAt,
+    });
   } catch (err) {
     console.error("[API GET /sensors/chart]", err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
