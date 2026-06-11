@@ -103,6 +103,10 @@ function toInputValue(date: Date) {
   return next.toISOString().slice(0, 19);
 }
 
+function toSqlTimestamp(value: string) {
+  return value.replace("T", " ");
+}
+
 function formatResolutionLabel(bucketMs: number) {
   if (bucketMs < 1000) return `${bucketMs}ms`;
   if (bucketMs % 1000 === 0) return `${bucketMs / 1000} giay`;
@@ -267,8 +271,8 @@ export default function ReportsPage() {
         const chartGardens = gardens.slice(0, 3);
         const chartParams = new URLSearchParams();
         if (rangeMode === "custom") {
-          chartParams.set("startAt", new Date(customStartAt).toISOString());
-          chartParams.set("endAt", new Date(customEndAt).toISOString());
+          chartParams.set("startAt", toSqlTimestamp(customStartAt));
+          chartParams.set("endAt", toSqlTimestamp(customEndAt));
           chartParams.set("resolution", "realtime");
           chartParams.set("bucketMs", String(bucketMs));
         } else if (selectedRange.hours <= 1) {

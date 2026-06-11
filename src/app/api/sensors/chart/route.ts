@@ -114,6 +114,31 @@ function floorToResolvedBucket(date: Date, strategy: BucketStrategy) {
   return floorToBucket(date, strategy.size);
 }
 
+function parseTimestampInput(value: string | null) {
+  if (!value) return null;
+
+  const normalized = value.trim().replace(" ", "T");
+  const matched = normalized.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/,
+  );
+
+  if (matched) {
+    const [, year, month, day, hour, minute, second = "0", millisecond = "0"] = matched;
+    return new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      Number(second),
+      Number(millisecond.padEnd(3, "0")),
+    ).getTime();
+  }
+
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
 export async function GET(request: Request) {
   if (!isDbConfigured()) {
     return NextResponse.json({ error: "Database not configured" }, { status: 503 });
@@ -129,14 +154,16 @@ export async function GET(request: Request) {
   const resolution = searchParams.get("resolution");
   const bucketSeconds = searchParams.get("bucketSeconds");
   const bucketMs = searchParams.get("bucketMs");
+  const parsedStartAt = parseTimestampInput(startAt);
+  const parsedEndAt = parseTimestampInput(endAt);
   const windowMinutes = Math.min(Math.max(parseInt(windowMinutesRaw ?? "0", 10) || 0, 0), 24 * 60 * 30);
   const fallbackHours = Math.min(parseFloat(searchParams.get("hours") ?? "24") || 24, 24 * 30);
   const derivedHours =
-    startAt && endAt
+    parsedStartAt !== null && parsedEndAt !== null
       ? Math.min(
           Math.max(
             0.01,
-            (new Date(endAt).getTime() - new Date(startAt).getTime()) / (60 * 60 * 1000),
+            (parsedEndAt - parsedStartAt) / (60 * 60 * 1000),
           ),
           24 * 30,
         )
@@ -187,13 +214,7 @@ export async function GET(request: Request) {
   }
 
   const filteredRows =
-    startAt && endAt
-      ? rows.filter((row) => {
-          const reading = row as { recorded_at: Date | string };
-          const recordedAt = new Date(reading.recorded_at).getTime();
-          return recordedAt >= new Date(startAt).getTime() && recordedAt <= new Date(endAt).getTime();
-        })
-      : startDate && endDate
+    startDate && endDate
       ? rows.filter((row) => {
           const reading = row as { recorded_at: Date | string };
           const recordedAt = new Date(reading.recorded_at).getTime();
