@@ -4,18 +4,19 @@ export const dynamic = "force-dynamic";
 import { isDbConfigured, query } from "@/backend/config/db";
 import { sendDeviceCommand, insertSystemLog } from "@/backend/services/queries";
 
-// Map device_type_id → CoreIoT device key
-const DEVICE_TYPE_TO_COREIOT: Record<number, "pump" | "light"> = {
-  5: "pump",   // pump
-  6: "pump",
-  7: "light",  // led_rgb
-  8: "light",
-  9: "pump",   // fan → pump channel
-  10: "pump",  // valve → pump channel
+// Map device_type_id → CoreIoT RPC method
+const DEVICE_TYPE_TO_RPC: Record<number, string> = {
+  5: "setPumpStatus",
+  6: "setPumpStatus",
+  7: "setLightStatus",
+  8: "setLightStatus",
+  9: "setPumpStatus",   // fan
+  10: "setPumpStatus",  // valve
 };
 
-const GATEWAY_URL =
-  process.env.GATEWAY_URL ?? "https://da-mushealy-farm-1.onrender.com";
+const COREIOT_URL = "https://app.coreiot.io";
+const COREIOT_TOKEN =
+  process.env.COREIOT_TOKEN ?? "1omr8yulbsmbyugm9yof";
 
 export async function POST(request: Request) {
   if (!isDbConfigured()) {
@@ -50,27 +51,32 @@ export async function POST(request: Request) {
     `${body.command} thiết bị #${deviceNumId}`,
   );
 
-  // Gửi lệnh tới CoreIoT thông qua gateway để điều khiển thiết bị vật lý
+  // Gọi CoreIoT trực tiếp để điều khiển thiết bị vật lý
+  // Flow: Vercel → CoreIoT → IoT Device (không cần qua gateway)
   try {
     const deviceRow = await query<{ device_type_id: number }>(
       `SELECT device_type_id FROM devices WHERE device_id = $1`,
       [deviceNumId],
     );
     const typeId = deviceRow[0]?.device_type_id;
-    const coreiotDevice = typeId ? DEVICE_TYPE_TO_COREIOT[typeId] : undefined;
+    const rpcMethod = typeId ? DEVICE_TYPE_TO_RPC[typeId] : undefined;
 
-    if (coreiotDevice) {
-      const coreiotStatus = body.command === "turn_on" ? "true" : "false";
-      await fetch(`${GATEWAY_URL}/api/control`, {
+    if (rpcMethod) {
+      const isOn = body.command === "turn_on";
+      await fetch(`${COREIOT_URL}/api/v1/${COREIOT_TOKEN}/telemetry`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ device: coreiotDevice, status: coreiotStatus }),
+        body: JSON.stringify({
+          _trigger_rpc: true,
+          method: rpcMethod,
+          params: String(isOn),
+        }),
         signal: AbortSignal.timeout(8000),
       });
     }
   } catch (err) {
-    // Không fail toàn bộ request nếu gateway timeout (Render free tier có thể sleep)
-    console.warn("[Command] CoreIoT control failed (non-critical):", err);
+    // Không fail request nếu CoreIoT không trả lời (non-critical)
+    console.warn("[Command] CoreIoT RPC failed (non-critical):", err);
   }
 
   return NextResponse.json({ ok: true });
