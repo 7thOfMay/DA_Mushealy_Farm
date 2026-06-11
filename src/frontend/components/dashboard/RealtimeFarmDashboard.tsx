@@ -24,6 +24,19 @@ type ChartResponse = {
   lightChartData: ChartDataPoint[];
 };
 
+const WINDOW_OPTIONS = [
+  { value: 10, label: "10 phut" },
+  { value: 15, label: "15 phut" },
+  { value: 60, label: "1 gio" },
+] as const;
+
+const RESOLUTION_OPTIONS = [
+  { value: 500, label: "500ms" },
+  { value: 1000, label: "1 giay" },
+  { value: 5000, label: "5 giay" },
+  { value: 10000, label: "10 giay" },
+] as const;
+
 const METRICS: Array<{
   key: MetricKey;
   label: string;
@@ -31,10 +44,10 @@ const METRICS: Array<{
   icon: typeof Thermometer;
   domain: [number, number];
 }> = [
-  { key: "temperature", label: "Nhiệt độ", unit: "°C", icon: Thermometer, domain: [15, 40] },
-  { key: "humidityAir", label: "Ẩm không khí", unit: "%", icon: Droplets, domain: [30, 100] },
-  { key: "humiditySoil", label: "Ẩm đất", unit: "%", icon: Activity, domain: [0, 100] },
-  { key: "light", label: "Ánh sáng", unit: "lux", icon: SunMedium, domain: [0, 25000] },
+  { key: "temperature", label: "Nhiet do", unit: "°C", icon: Thermometer, domain: [15, 40] },
+  { key: "humidityAir", label: "Am khong khi", unit: "%", icon: Droplets, domain: [30, 100] },
+  { key: "humiditySoil", label: "Am dat", unit: "%", icon: Activity, domain: [0, 100] },
+  { key: "light", label: "Anh sang", unit: "lux", icon: SunMedium, domain: [0, 25000] },
 ];
 
 function getMetricValue(summary: ReturnType<typeof useAppStore.getState>["sensorSummaries"][number], metric: MetricKey) {
@@ -45,14 +58,26 @@ function getMetricValue(summary: ReturnType<typeof useAppStore.getState>["sensor
 }
 
 function formatSummaryValue(metric: MetricKey, value: number) {
-  if (metric === "light") return value.toLocaleString("vi-VN");
+  if (metric === "light") return Math.round(value).toLocaleString("vi-VN");
   return value.toFixed(1);
 }
 
-function formatTickLabel(value: string) {
-  const parts = value.split(":");
-  if (parts.length === 3) return `${parts[1]}:${parts[2]}`;
-  return value;
+function formatResolutionLabel(bucketMs: number) {
+  if (bucketMs < 1000) return `${bucketMs}ms`;
+  if (bucketMs % 1000 === 0) return `${bucketMs / 1000} giay`;
+  return `${(bucketMs / 1000).toFixed(1)} giay`;
+}
+
+function formatTickLabel(value: string, bucketMs: number) {
+  const [time, milliseconds] = value.split(".");
+  const timeParts = time.split(":");
+  if (timeParts.length !== 3) return value;
+
+  const suffix = `${timeParts[1]}:${timeParts[2]}`;
+  if (bucketMs < 1000 && milliseconds) {
+    return `${suffix}.${milliseconds}`;
+  }
+  return suffix;
 }
 
 function RealtimeTooltip({
@@ -86,6 +111,8 @@ function RealtimeTooltip({
 
 export function RealtimeFarmDashboard({ farmGardens }: { farmGardens: Garden[] }) {
   const [activeMetric, setActiveMetric] = useState<MetricKey>("temperature");
+  const [windowMinutes, setWindowMinutes] = useState<number>(15);
+  const [bucketMs, setBucketMs] = useState<number>(5000);
   const [chartData, setChartData] = useState<ChartResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -94,6 +121,7 @@ export function RealtimeFarmDashboard({ farmGardens }: { farmGardens: Garden[] }
   const chartGardens = useMemo(() => farmGardens.slice(0, 3), [farmGardens]);
   const chartGardenIds = useMemo(() => chartGardens.map((garden) => garden.id).join("|"), [chartGardens]);
   const activeConfig = METRICS.find((metric) => metric.key === activeMetric) ?? METRICS[0];
+  const refreshMs = Math.min(10_000, Math.max(3_000, bucketMs >= 5000 ? bucketMs : 3_000));
 
   useEffect(() => {
     if (!chartGardenIds) {
@@ -108,15 +136,15 @@ export function RealtimeFarmDashboard({ farmGardens }: { farmGardens: Garden[] }
       try {
         const gardenIds = chartGardenIds.split("|").filter(Boolean);
         const params = new URLSearchParams({
-          hours: "1",
+          windowMinutes: String(windowMinutes),
           resolution: "realtime",
-          bucketSeconds: "5",
+          bucketMs: String(bucketMs),
         });
         gardenIds.forEach((gardenId) => params.append("gardenId", gardenId));
 
         const response = await fetch(`/api/sensors/chart?${params.toString()}`, { cache: "no-store" });
         if (!response.ok) {
-          throw new Error("Không thể tải dữ liệu realtime");
+          throw new Error("Khong the tai du lieu realtime");
         }
 
         const next = (await response.json()) as ChartResponse;
@@ -127,20 +155,21 @@ export function RealtimeFarmDashboard({ farmGardens }: { farmGardens: Garden[] }
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Không thể tải dữ liệu realtime");
+          setError(err instanceof Error ? err.message : "Khong the tai du lieu realtime");
           setLoading(false);
         }
       }
     };
 
+    setLoading(true);
     void loadChart();
-    const interval = setInterval(loadChart, 5_000);
+    const interval = setInterval(loadChart, refreshMs);
 
     return () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [chartGardenIds]);
+  }, [bucketMs, chartGardenIds, refreshMs, windowMinutes]);
 
   const series = useMemo(() => {
     if (!chartData) return [];
@@ -166,18 +195,20 @@ export function RealtimeFarmDashboard({ farmGardens }: { farmGardens: Garden[] }
   }, [activeMetric, chartData, chartGardens]);
 
   const latestCards = useMemo(() => {
-    return chartGardens.map((garden) => {
-      const summary = sensorSummaries.find((item) => item.gardenId === garden.id);
-      if (!summary) return null;
-      return {
-        id: garden.id,
-        name: garden.name,
-        color: garden.color,
-        numericValue: getMetricValue(summary, activeMetric),
-        value: formatSummaryValue(activeMetric, getMetricValue(summary, activeMetric)),
-        updatedAt: summary.updatedAt,
-      };
-    }).filter((item): item is NonNullable<typeof item> => item !== null);
+    return chartGardens
+      .map((garden) => {
+        const summary = sensorSummaries.find((item) => item.gardenId === garden.id);
+        if (!summary) return null;
+        return {
+          id: garden.id,
+          name: garden.name,
+          color: garden.color,
+          numericValue: getMetricValue(summary, activeMetric),
+          value: formatSummaryValue(activeMetric, getMetricValue(summary, activeMetric)),
+          updatedAt: summary.updatedAt,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
   }, [activeMetric, chartGardens, sensorSummaries]);
 
   return (
@@ -185,13 +216,51 @@ export function RealtimeFarmDashboard({ farmGardens }: { farmGardens: Garden[] }
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="mb-1 text-[0.72rem] uppercase tracking-[0.22em] text-[#5C7A6A]">Realtime monitor</p>
-          <h3 className="text-[1.15rem] font-semibold text-[#1A2E1F]">Dashboard realtime 1 giờ gần nhất</h3>
+          <h3 className="text-[1.15rem] font-semibold text-[#1A2E1F]">
+            Dashboard realtime {windowMinutes} phut gan nhat
+          </h3>
           <p className="text-[0.82rem] text-[#5C7A6A]">
-            Ghi dữ liệu từ DB theo nhịp 5 giây để demo cảm biến và thiết bị rõ hơn.
+            Doc DB theo cua so ngan va bucket {formatResolutionLabel(bucketMs)} de theo doi du lieu day.
           </p>
         </div>
-        <div className="rounded-full border border-[#D6E1D8] bg-[#F7F8F6] px-3 py-1 text-[0.78rem] text-[#2F5D45]">
-          Tối đa {chartGardens.length} khu vườn hiển thị đồng thời
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-full border border-[#D6E1D8] bg-[#F7F8F6] p-1">
+            {WINDOW_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setWindowMinutes(option.value)}
+                className={cn(
+                  "rounded-full px-3 py-1 text-[0.78rem] transition-colors",
+                  windowMinutes === option.value
+                    ? "bg-[#1B4332] text-white"
+                    : "text-[#2F5D45] hover:bg-[#EAF3ED]",
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex rounded-full border border-[#D6E1D8] bg-[#F7F8F6] p-1">
+            {RESOLUTION_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setBucketMs(option.value)}
+                className={cn(
+                  "rounded-full px-3 py-1 text-[0.78rem] transition-colors",
+                  bucketMs === option.value
+                    ? "bg-[#1B4332] text-white"
+                    : "text-[#2F5D45] hover:bg-[#EAF3ED]",
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <div className="rounded-full border border-[#D6E1D8] bg-[#F7F8F6] px-3 py-1 text-[0.78rem] text-[#2F5D45]">
+            Toi da {chartGardens.length} khu vuon hien thi dong thoi
+          </div>
         </div>
       </div>
 
@@ -208,24 +277,25 @@ export function RealtimeFarmDashboard({ farmGardens }: { farmGardens: Garden[] }
           return (
             <button
               key={metric.key}
+              type="button"
               onClick={() => setActiveMetric(metric.key)}
               className={cn(
                 "rounded-[14px] border px-4 py-3 text-left transition-all",
                 activeMetric === metric.key
-                  ? "border-[#1B4332] bg-[#163d2d] text-white shadow-[0_16px_40px_rgba(27,67,50,0.18)]"
+                  ? "border-[#1B4332] bg-[#EAF3ED] text-[#163928] shadow-[0_16px_40px_rgba(27,67,50,0.12)]"
                   : "border-[#E2E8E4] bg-[#F7F8F6] text-[#1A2E1F] hover:border-[#B7CDBE]",
               )}
             >
               <div className="mb-2 flex items-center justify-between">
-                <Icon size={16} className={activeMetric === metric.key ? "text-[#DDEBDF]" : "text-[#2F5D45]"} />
-                <span className={cn("text-[0.72rem]", activeMetric === metric.key ? "text-white/70" : "text-[#5C7A6A]")}>
-                  trung bình realtime
+                <Icon size={16} className={activeMetric === metric.key ? "text-[#1B4332]" : "text-[#2F5D45]"} />
+                <span className={cn("text-[0.72rem]", activeMetric === metric.key ? "text-[#426854]" : "text-[#5C7A6A]")}>
+                  trung binh realtime
                 </span>
               </div>
-              <p className={cn("text-[0.82rem] font-semibold", activeMetric === metric.key ? "text-white" : "text-[#1A2E1F]")}>
+              <p className={cn("text-[0.82rem] font-semibold", activeMetric === metric.key ? "text-[#163928]" : "text-[#1A2E1F]")}>
                 {metric.label}
               </p>
-              <p className={cn("mt-1 text-[1.2rem] font-bold", activeMetric === metric.key ? "text-white" : "text-[#1A2E1F]")}>
+              <p className={cn("mt-1 text-[1.2rem] font-bold", activeMetric === metric.key ? "text-[#163928]" : "text-[#1A2E1F]")}>
                 {avg === null ? "--" : metric.key === "light" ? Math.round(avg).toLocaleString("vi-VN") : avg.toFixed(1)}
                 <span className="ml-1 text-[0.8rem] font-medium">{metric.unit}</span>
               </p>
@@ -248,7 +318,7 @@ export function RealtimeFarmDashboard({ farmGardens }: { farmGardens: Garden[] }
               {card.value} {activeConfig.unit}
             </p>
             <p className="mt-1 text-[0.76rem] text-[#5C7A6A]">
-              Cập nhật: {new Date(card.updatedAt).toLocaleTimeString("vi-VN")}
+              Cap nhat: {new Date(card.updatedAt).toLocaleTimeString("vi-VN")}
             </p>
           </div>
         ))}
@@ -257,13 +327,13 @@ export function RealtimeFarmDashboard({ farmGardens }: { farmGardens: Garden[] }
       <div className="h-[340px] rounded-[16px] border border-[#E2E8E4] bg-[#FCFDFC] p-3">
         {loading ? (
           <div className="flex h-full items-center justify-center text-[#5C7A6A]">
-            Mushy đang lấy dữ liệu bạn đợi xíu nhé!
+            Mushy dang lay du lieu ban doi xiu nhe!
           </div>
         ) : error ? (
           <div className="flex h-full items-center justify-center text-center text-[#A33A2B]">{error}</div>
         ) : series.length === 0 ? (
           <div className="flex h-full items-center justify-center text-[#5C7A6A]">
-            Chưa có đủ dữ liệu realtime trong 1 giờ gần nhất.
+            Chua co du du lieu realtime trong cua so {windowMinutes} phut gan nhat.
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
@@ -271,9 +341,9 @@ export function RealtimeFarmDashboard({ farmGardens }: { farmGardens: Garden[] }
               <CartesianGrid stroke="#E6ECE8" strokeDasharray="3 3" vertical={false} />
               <XAxis
                 dataKey="time"
-                minTickGap={28}
+                minTickGap={bucketMs < 1000 ? 46 : 28}
                 tick={{ fontSize: 11, fill: "#5C7A6A", fontFamily: "'DM Mono', monospace" }}
-                tickFormatter={formatTickLabel}
+                tickFormatter={(value) => formatTickLabel(value, bucketMs)}
                 axisLine={{ stroke: "#E2E8E4" }}
                 tickLine={false}
               />
@@ -290,7 +360,7 @@ export function RealtimeFarmDashboard({ farmGardens }: { farmGardens: Garden[] }
                   type="monotone"
                   dataKey={`garden${index + 1}`}
                   stroke={garden.color}
-                  strokeWidth={2.4}
+                  strokeWidth={2.2}
                   dot={false}
                   activeDot={{ r: 4 }}
                   name={garden.name}

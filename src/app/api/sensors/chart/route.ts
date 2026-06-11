@@ -60,20 +60,30 @@ type BucketStatKey =
 
 type BucketStrategy =
   | { unit: "minutes"; size: number }
-  | { unit: "seconds"; size: number };
+  | { unit: "milliseconds"; size: number };
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-function resolveBucketStrategy(hours: number, resolution: string | null, bucketSecondsRaw: string | null): BucketStrategy {
+function resolveBucketStrategy(
+  hours: number,
+  resolution: string | null,
+  bucketSecondsRaw: string | null,
+  bucketMsRaw: string | null,
+): BucketStrategy {
   if (resolution === "realtime") {
-    const parsed = parseInt(bucketSecondsRaw ?? "5", 10);
-    const fallback = hours <= 1 ? 5 : 30;
-    const bucketSeconds = Number.isFinite(parsed) ? parsed : fallback;
+    const parsedMs = parseInt(bucketMsRaw ?? "", 10);
+    const parsedSeconds = parseFloat(bucketSecondsRaw ?? "");
+    const fallbackMs = hours <= 1 ? 5_000 : 30_000;
+    const bucketMs = Number.isFinite(parsedMs) && parsedMs > 0
+      ? parsedMs
+      : Number.isFinite(parsedSeconds) && parsedSeconds > 0
+        ? Math.round(parsedSeconds * 1000)
+        : fallbackMs;
     return {
-      unit: "seconds",
-      size: clamp(bucketSeconds, 1, hours <= 1 ? 60 : 300),
+      unit: "milliseconds",
+      size: clamp(bucketMs, 100, hours <= 1 ? 60_000 : 300_000),
     };
   }
 
@@ -84,16 +94,20 @@ function resolveBucketStrategy(hours: number, resolution: string | null, bucketS
 }
 
 function formatBucketTime(date: Date, strategy: BucketStrategy) {
-  if (strategy.unit === "seconds") {
-    return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}:${String(date.getSeconds()).padStart(2, "0")}`;
+  if (strategy.unit === "milliseconds") {
+    const base = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}:${String(date.getSeconds()).padStart(2, "0")}`;
+    if (strategy.size < 1000) {
+      return `${base}.${String(date.getMilliseconds()).padStart(3, "0")}`;
+    }
+    return base;
   }
 
   return formatBucketLabel(date, strategy.size);
 }
 
 function floorToResolvedBucket(date: Date, strategy: BucketStrategy) {
-  if (strategy.unit === "seconds") {
-    const bucketMs = strategy.size * 1000;
+  if (strategy.unit === "milliseconds") {
+    const bucketMs = strategy.size;
     return new Date(Math.floor(date.getTime() / bucketMs) * bucketMs);
   }
 
@@ -109,9 +123,12 @@ export async function GET(request: Request) {
   const gardenIds = searchParams.getAll("gardenId");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
+  const windowMinutesRaw = searchParams.get("windowMinutes");
   const resolution = searchParams.get("resolution");
   const bucketSeconds = searchParams.get("bucketSeconds");
-  const fallbackHours = Math.min(parseInt(searchParams.get("hours") ?? "24", 10) || 24, 24 * 30);
+  const bucketMs = searchParams.get("bucketMs");
+  const windowMinutes = Math.min(Math.max(parseInt(windowMinutesRaw ?? "0", 10) || 0, 0), 24 * 60 * 30);
+  const fallbackHours = Math.min(parseFloat(searchParams.get("hours") ?? "24") || 24, 24 * 30);
   const derivedHours =
     startDate && endDate
       ? Math.min(
@@ -121,7 +138,9 @@ export async function GET(request: Request) {
           ),
           24 * 30,
         )
-      : fallbackHours;
+      : windowMinutes > 0
+        ? windowMinutes / 60
+        : fallbackHours;
   const hours = derivedHours;
 
   if (!gardenIds.length) {
@@ -166,7 +185,7 @@ export async function GET(request: Request) {
         })
       : rows;
 
-  const bucketStrategy = resolveBucketStrategy(hours, resolution, bucketSeconds);
+  const bucketStrategy = resolveBucketStrategy(hours, resolution, bucketSeconds, bucketMs);
   const gardenIndex = new Map<number, string>();
   zoneIds.forEach((zoneId, index) => gardenIndex.set(zoneId, `garden${index + 1}`));
 
