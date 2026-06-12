@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { AlertTriangle, Cpu, Download, Filter, History, Search, Settings2, Waves } from "lucide-react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import { Topbar } from "@/frontend/components/layout/Topbar";
@@ -161,6 +162,7 @@ async function exportJournalEntries(entries: JournalEntry[], startDate: string, 
 }
 
 export default function LogsPage() {
+  const searchParams = useSearchParams();
   const currentFarmId = useAppStore((state) => state.currentFarmId);
   const farms = useAppStore((state) => state.farms);
   const users = useAppStore((state) => state.users);
@@ -213,6 +215,12 @@ export default function LogsPage() {
 
   const selectedGarden = farmScopedGardens.find((garden) => garden.id === selectedGardenId) ?? farmScopedGardens[0] ?? null;
   const chartMetric = metricFilter === "all" ? "temperature" : metricFilter;
+
+  useEffect(() => {
+    const requestedGardenId = searchParams.get("gardenId");
+    if (!requestedGardenId || !farmScopedGardens.some((garden) => garden.id === requestedGardenId)) return;
+    setSelectedGardenId(requestedGardenId);
+  }, [farmScopedGardens, searchParams]);
 
   useEffect(() => {
     setDateRange(buildDateRange(timeFilter));
