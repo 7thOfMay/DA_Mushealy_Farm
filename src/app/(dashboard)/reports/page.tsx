@@ -721,7 +721,7 @@ export default function ReportsPage() {
                           dataKey="temperature"
                           stroke={selectedGarden.color}
                           strokeWidth={2}
-                          dot={isShortRange ? { r: 2 } : false}
+                          dot={false}
                           activeDot={{ r: 4 }}
                           name={`${selectedGarden.plantLabel} (°C)`}
                           connectNulls
@@ -761,8 +761,8 @@ export default function ReportsPage() {
                         <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
                         <Tooltip />
                         <Legend />
-                        <Line yAxisId="left" type="monotone" dataKey="humiditySoil" stroke="#2980B9" strokeWidth={2} dot={isShortRange ? { r: 2 } : false} name="Độ ẩm đất (%)" connectNulls />
-                        <Line yAxisId="left" type="monotone" dataKey="temperature" stroke="#E67E22" strokeWidth={2} dot={isShortRange ? { r: 2 } : false} name="Nhiệt độ (°C)" connectNulls />
+                        <Line yAxisId="left" type="monotone" dataKey="humiditySoil" stroke="#2980B9" strokeWidth={2} dot={false} name="Độ ẩm đất (%)" connectNulls />
+                        <Line yAxisId="left" type="monotone" dataKey="temperature" stroke="#E67E22" strokeWidth={2} dot={false} name="Nhiệt độ (°C)" connectNulls />
                         <Line yAxisId="right" type="monotone" dataKey="light" stroke="#F39C12" strokeWidth={2} dot={false} name="Ánh sáng (k lux)" />
                       </ComposedChart>
                     </ResponsiveContainer>
@@ -799,7 +799,7 @@ export default function ReportsPage() {
                         />
                         <YAxis tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
                         <Tooltip />
-                        <Line type="monotone" dataKey="value" stroke="#2D9CDB" strokeWidth={2} dot={isShortRange ? { r: 2 } : false} connectNulls />
+                        <Line type="monotone" dataKey="value" stroke="#2D9CDB" strokeWidth={2} dot={false} connectNulls />
                       </LineChart>
                     </ResponsiveContainer>
                   )}
@@ -833,7 +833,7 @@ export default function ReportsPage() {
                         />
                         <YAxis tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
                         <Tooltip />
-                        <Line type="monotone" dataKey="value" stroke="#2980B9" strokeWidth={2} dot={isShortRange ? { r: 2 } : false} connectNulls />
+                        <Line type="monotone" dataKey="value" stroke="#2980B9" strokeWidth={2} dot={false} connectNulls />
                       </LineChart>
                     </ResponsiveContainer>
                   )}
@@ -867,7 +867,7 @@ export default function ReportsPage() {
                         />
                         <YAxis tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
                         <Tooltip />
-                        <Line type={isShortRange ? "stepAfter" : "monotone"} dataKey="value" stroke="#F39C12" strokeWidth={2} dot={isShortRange ? { r: 2 } : false} connectNulls />
+                        <Line type={isShortRange ? "stepAfter" : "monotone"} dataKey="value" stroke="#F39C12" strokeWidth={2} dot={false} connectNulls />
                       </LineChart>
                     </ResponsiveContainer>
                   )}
