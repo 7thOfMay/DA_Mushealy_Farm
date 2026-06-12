@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { Topbar } from "@/frontend/components/layout/Topbar";
 import { ErrorState } from "@/frontend/components/shared/ErrorStates";
 import { useAppStore } from "@/frontend/context/store";
@@ -51,6 +51,7 @@ type ModalCategory = "SENSOR" | "ACTUATOR" | null;
 
 export default function FarmDevicesPage() {
   const { farmId } = useParams<{ farmId: string }>();
+  const searchParams = useSearchParams();
   const farms = useAppStore((state) => state.farms);
   const gardens = useAppStore((state) => state.gardens);
   const farm = farms.find((item) => item.id === farmId);
@@ -84,6 +85,33 @@ export default function FarmDevicesPage() {
   });
 
   const farmGardens = gardens.filter((garden) => garden.farmId === farmId);
+  const requestedGardenId = searchParams.get("gardenId");
+  const shouldAutoOpenCreate = searchParams.get("create") === "1";
+
+  useEffect(() => {
+    if (!farmGardens.length) return;
+
+    if (requestedGardenId && farmGardens.some((garden) => garden.id === requestedGardenId)) {
+      setGardenFilter(requestedGardenId);
+      setForm((prev) => ({ ...prev, gardenId: requestedGardenId }));
+    }
+  }, [farmGardens, requestedGardenId]);
+
+  useEffect(() => {
+    if (!shouldAutoOpenCreate || showModal || !farmGardens.length) return;
+
+    setShowModal(true);
+    setStep(1);
+    setCategory(null);
+    setDetailType(null);
+    setForm((prev) => ({
+      ...prev,
+      gardenId:
+        requestedGardenId && farmGardens.some((garden) => garden.id === requestedGardenId)
+          ? requestedGardenId
+          : farmGardens[0]?.id ?? "",
+    }));
+  }, [farmGardens, requestedGardenId, shouldAutoOpenCreate, showModal]);
 
   const farmDevices = useMemo(() => {
     const farmGardenIds = new Set(farmGardens.map((garden) => garden.id));

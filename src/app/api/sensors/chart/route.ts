@@ -60,20 +60,30 @@ type BucketStatKey =
 
 type BucketStrategy =
   | { unit: "minutes"; size: number }
-  | { unit: "seconds"; size: number };
+  | { unit: "milliseconds"; size: number };
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-function resolveBucketStrategy(hours: number, resolution: string | null, bucketSecondsRaw: string | null): BucketStrategy {
+function resolveBucketStrategy(
+  hours: number,
+  resolution: string | null,
+  bucketSecondsRaw: string | null,
+  bucketMsRaw: string | null,
+): BucketStrategy {
   if (resolution === "realtime") {
-    const parsed = parseInt(bucketSecondsRaw ?? "5", 10);
-    const fallback = hours <= 1 ? 5 : 30;
-    const bucketSeconds = Number.isFinite(parsed) ? parsed : fallback;
+    const parsedMs = parseInt(bucketMsRaw ?? "", 10);
+    const parsedSeconds = parseFloat(bucketSecondsRaw ?? "");
+    const fallbackMs = hours <= 1 ? 5_000 : 30_000;
+    const bucketMs = Number.isFinite(parsedMs) && parsedMs > 0
+      ? parsedMs
+      : Number.isFinite(parsedSeconds) && parsedSeconds > 0
+        ? Math.round(parsedSeconds * 1000)
+        : fallbackMs;
     return {
-      unit: "seconds",
-      size: clamp(bucketSeconds, 1, hours <= 1 ? 60 : 300),
+      unit: "milliseconds",
+      size: clamp(bucketMs, 100, hours <= 1 ? 60_000 : 300_000),
     };
   }
 
@@ -84,20 +94,49 @@ function resolveBucketStrategy(hours: number, resolution: string | null, bucketS
 }
 
 function formatBucketTime(date: Date, strategy: BucketStrategy) {
-  if (strategy.unit === "seconds") {
-    return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}:${String(date.getSeconds()).padStart(2, "0")}`;
+  if (strategy.unit === "milliseconds") {
+    const base = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}:${String(date.getSeconds()).padStart(2, "0")}`;
+    if (strategy.size < 1000) {
+      return `${base}.${String(date.getMilliseconds()).padStart(3, "0")}`;
+    }
+    return base;
   }
 
   return formatBucketLabel(date, strategy.size);
 }
 
 function floorToResolvedBucket(date: Date, strategy: BucketStrategy) {
-  if (strategy.unit === "seconds") {
-    const bucketMs = strategy.size * 1000;
+  if (strategy.unit === "milliseconds") {
+    const bucketMs = strategy.size;
     return new Date(Math.floor(date.getTime() / bucketMs) * bucketMs);
   }
 
   return floorToBucket(date, strategy.size);
+}
+
+function parseTimestampInput(value: string | null) {
+  if (!value) return null;
+
+  const normalized = value.trim().replace(" ", "T");
+  const matched = normalized.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/,
+  );
+
+  if (matched) {
+    const [, year, month, day, hour, minute, second = "0", millisecond = "0"] = matched;
+    return new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      Number(second),
+      Number(millisecond.padEnd(3, "0")),
+    ).getTime();
+  }
+
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : parsed;
 }
 
 export async function GET(request: Request) {
@@ -109,11 +148,26 @@ export async function GET(request: Request) {
   const gardenIds = searchParams.getAll("gardenId");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
+  const startAt = searchParams.get("startAt");
+  const endAt = searchParams.get("endAt");
+  const windowMinutesRaw = searchParams.get("windowMinutes");
   const resolution = searchParams.get("resolution");
   const bucketSeconds = searchParams.get("bucketSeconds");
-  const fallbackHours = Math.min(parseInt(searchParams.get("hours") ?? "24", 10) || 24, 24 * 30);
+  const bucketMs = searchParams.get("bucketMs");
+  const parsedStartAt = parseTimestampInput(startAt);
+  const parsedEndAt = parseTimestampInput(endAt);
+  const windowMinutes = Math.min(Math.max(parseInt(windowMinutesRaw ?? "0", 10) || 0, 0), 24 * 60 * 30);
+  const fallbackHours = Math.min(parseFloat(searchParams.get("hours") ?? "24") || 24, 24 * 30);
   const derivedHours =
-    startDate && endDate
+    parsedStartAt !== null && parsedEndAt !== null
+      ? Math.min(
+          Math.max(
+            0.01,
+            (parsedEndAt - parsedStartAt) / (60 * 60 * 1000),
+          ),
+          24 * 30,
+        )
+      : startDate && endDate
       ? Math.min(
           Math.max(
             1,
@@ -121,7 +175,9 @@ export async function GET(request: Request) {
           ),
           24 * 30,
         )
-      : fallbackHours;
+      : windowMinutes > 0
+        ? windowMinutes / 60
+        : fallbackHours;
   const hours = derivedHours;
 
   if (!gardenIds.length) {
@@ -148,7 +204,10 @@ export async function GET(request: Request) {
 
   let rows;
   try {
-    rows = await fetchSensorChartData(zoneIds, hours);
+    rows = await fetchSensorChartData(zoneIds, hours, {
+      startAt,
+      endAt,
+    });
   } catch (err) {
     console.error("[API GET /sensors/chart]", err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
@@ -166,7 +225,7 @@ export async function GET(request: Request) {
         })
       : rows;
 
-  const bucketStrategy = resolveBucketStrategy(hours, resolution, bucketSeconds);
+  const bucketStrategy = resolveBucketStrategy(hours, resolution, bucketSeconds, bucketMs);
   const gardenIndex = new Map<number, string>();
   zoneIds.forEach((zoneId, index) => gardenIndex.set(zoneId, `garden${index + 1}`));
 

@@ -118,8 +118,9 @@ export default function FarmGardenDetailPage() {
           <div className="mt-4 pt-4 border-t border-[#E2E8E4] flex items-center justify-between flex-wrap gap-2">
             <p className="text-[0.75rem] text-[#5C7A6A]">Cập nhật cảm biến: {sensor ? timeAgo(sensor.updatedAt) : "Chưa có dữ liệu"}</p>
             <div className="flex gap-2">
-              <Link href={`/farms/${farm.id}/devices`} className="btn-secondary">Thiết bị</Link>
+              <Link href={`/farms/${farm.id}/devices?gardenId=${garden.id}`} className="btn-secondary">Thiết bị</Link>
               <Link href={`/farms/${farm.id}/schedules?gardenId=${garden.id}`} className="btn-secondary">Lịch trình</Link>
+              <Link href={`/farms/${farm.id}/logs?gardenId=${garden.id}`} className="btn-secondary">Nhật ký</Link>
               <Link href={`/farms/${farm.id}/alerts`} className="btn-secondary">Cảnh báo</Link>
             </div>
           </div>
@@ -146,7 +147,12 @@ export default function FarmGardenDetailPage() {
           <div className="card overflow-hidden">
             <div className="px-5 py-3 border-b border-[#E2E8E4] flex items-center justify-between">
               <h3 className="font-semibold text-[#1A2E1F]">Thiết bị trong khu vườn</h3>
-              <span className="text-[0.75rem] text-[#5C7A6A]">{gardenDevices.length} thiết bị</span>
+              <div className="flex items-center gap-3">
+                <span className="text-[0.75rem] text-[#5C7A6A]">{gardenDevices.length} thiết bị</span>
+                <Link href={`/farms/${farm.id}/devices?gardenId=${garden.id}&create=1`} className="btn-secondary">
+                  Thêm thiết bị
+                </Link>
+              </div>
             </div>
             {gardenDevices.length === 0 ? (
               <div className="p-5">
@@ -227,7 +233,12 @@ export default function FarmGardenDetailPage() {
             <div className="card p-4">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-semibold text-[#1A2E1F]">Nhật ký thao tác</h3>
-                <ClipboardList size={16} className="text-[#5C7A6A]" />
+                <div className="flex items-center gap-3">
+                  <ClipboardList size={16} className="text-[#5C7A6A]" />
+                  <Link href={`/farms/${farm.id}/logs?gardenId=${garden.id}`} className="btn-secondary">
+                    Xem đầy đủ
+                  </Link>
+                </div>
               </div>
               {gardenLogs.length === 0 ? (
                 <p className="text-[0.8125rem] text-[#5C7A6A]">Chưa có nhật ký cho khu vườn này.</p>

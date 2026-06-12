@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Bar,
   CartesianGrid,
   Cell,
   ComposedChart,
@@ -28,7 +27,8 @@ import { getManagedFarmers, getVisibleFarmsForViewer } from "@/frontend/utils/da
 import { cn } from "@/frontend/utils/utils";
 import type { Alert, ChartDataPoint, Garden, GardenSensorSummary, Schedule, ZoneThresholds } from "@/types";
 
-type DashboardRange = "1h" | "24h" | "72h" | "1w" | "1m";
+type DashboardRange = "10m" | "15m" | "1h" | "24h" | "72h" | "1w" | "1m";
+type RangeMode = "preset" | "custom";
 type CorrelationPair = "temp-soil" | "temp-light" | "soil-light";
 type DistributionMetric = "temperature" | "humidityAir" | "humiditySoil" | "light";
 
@@ -60,12 +60,21 @@ type GardenSeriesPoint = {
 };
 
 const RANGE_OPTIONS: Array<{ key: DashboardRange; label: string; hours: number }> = [
+  { key: "10m", label: "10 phut gan nhat", hours: 10 / 60 },
+  { key: "15m", label: "15 phut gan nhat", hours: 15 / 60 },
   { key: "1h", label: "1 giờ gần nhất", hours: 1 },
   { key: "24h", label: "24 giờ gần nhất", hours: 24 },
   { key: "72h", label: "72 giờ gần nhất", hours: 72 },
   { key: "1w", label: "1 tuần", hours: 24 * 7 },
   { key: "1m", label: "1 tháng", hours: 24 * 30 },
 ];
+
+const RESOLUTION_OPTIONS = [
+  { value: 500, label: "500ms" },
+  { value: 1000, label: "1 giay" },
+  { value: 5000, label: "5 giay" },
+  { value: 10000, label: "10 giay" },
+] as const;
 
 const EMPTY_PAYLOAD: DashboardPayload = {
   gardens: [],
@@ -87,6 +96,30 @@ function averageOf(values: number[]) {
 
 function toWindowStart(hours: number) {
   return Date.now() - hours * 60 * 60 * 1000;
+}
+
+function toInputValue(date: Date) {
+  const next = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return next.toISOString().slice(0, 19);
+}
+
+function toSqlTimestamp(value: string) {
+  return value.replace("T", " ");
+}
+
+function formatResolutionLabel(bucketMs: number) {
+  if (bucketMs < 1000) return `${bucketMs}ms`;
+  if (bucketMs % 1000 === 0) return `${bucketMs / 1000} giay`;
+  return `${(bucketMs / 1000).toFixed(1)} giay`;
+}
+
+function formatDenseTickLabel(value: string, bucketMs: number) {
+  const [time, milliseconds] = value.split(".");
+  const parts = time.split(":");
+  if (parts.length !== 3) return value;
+  const suffix = `${parts[1]}:${parts[2]}`;
+  if (bucketMs < 1000 && milliseconds) return `${suffix}.${milliseconds}`;
+  return suffix;
 }
 
 function pickGardenValue(point: ChartDataPoint, index: number) {
@@ -191,7 +224,9 @@ export default function ReportsPage() {
   const visibleFarms = getVisibleFarmsForViewer({ farms, users, loggedInUser, selectedFarmerId });
   const selectedFarm = visibleFarms.find((farm) => farm.id === currentFarmId) ?? visibleFarms[0] ?? null;
 
+  const [rangeMode, setRangeMode] = useState<RangeMode>("preset");
   const [range, setRange] = useState<DashboardRange>("24h");
+  const [bucketMs, setBucketMs] = useState<number>(5000);
   const [correlationPair, setCorrelationPair] = useState<CorrelationPair>("temp-soil");
   const [distributionMetric, setDistributionMetric] = useState<DistributionMetric>("temperature");
   const [selectedGardenId, setSelectedGardenId] = useState<string>("");
@@ -201,7 +236,17 @@ export default function ReportsPage() {
   const [thresholds, setThresholds] = useState<ZoneThresholds[]>([]);
 
   const selectedRange = RANGE_OPTIONS.find((option) => option.key === range) ?? RANGE_OPTIONS[1];
-  const isShortRange = range === "1h";
+  const [customStartAt, setCustomStartAt] = useState(() => toInputValue(new Date(Date.now() - 15 * 60_000)));
+  const [customEndAt, setCustomEndAt] = useState(() => toInputValue(new Date()));
+  const customRangeHours = Math.max(
+    0.01,
+    (new Date(customEndAt).getTime() - new Date(customStartAt).getTime()) / (60 * 60 * 1000),
+  );
+  const activeRangeHours = rangeMode === "custom" ? customRangeHours : selectedRange.hours;
+  const isShortRange = activeRangeHours <= 1;
+  const effectiveRangeLabel = rangeMode === "custom"
+    ? `${new Date(customStartAt).toLocaleString("vi-VN")} -> ${new Date(customEndAt).toLocaleString("vi-VN")}`
+    : selectedRange.label;
 
   useEffect(() => {
     if (!selectedFarm) {
@@ -225,7 +270,18 @@ export default function ReportsPage() {
         const gardens = (await gardensResponse.json()) as Garden[];
         const chartGardens = gardens.slice(0, 3);
         const chartParams = new URLSearchParams();
-        chartParams.set("hours", String(selectedRange.hours));
+        if (rangeMode === "custom") {
+          chartParams.set("startAt", toSqlTimestamp(customStartAt));
+          chartParams.set("endAt", toSqlTimestamp(customEndAt));
+          chartParams.set("resolution", "realtime");
+          chartParams.set("bucketMs", String(bucketMs));
+        } else if (selectedRange.hours <= 1) {
+          chartParams.set("windowMinutes", String(Math.round(selectedRange.hours * 60)));
+          chartParams.set("resolution", "realtime");
+          chartParams.set("bucketMs", String(bucketMs));
+        } else {
+          chartParams.set("hours", String(selectedRange.hours));
+        }
         chartGardens.forEach((garden) => chartParams.append("gardenId", garden.id));
 
         const [sensorResponse, alertResponse, scheduleResponse, chartResponse, thresholdRows] = await Promise.all([
@@ -252,7 +308,9 @@ export default function ReportsPage() {
         if (cancelled) return;
 
         const gardenIds = new Set(gardens.map((garden) => garden.id));
-        const windowStart = toWindowStart(selectedRange.hours);
+        const windowStart = rangeMode === "custom"
+          ? new Date(customStartAt).getTime()
+          : toWindowStart(selectedRange.hours);
 
         setPayload({
           gardens,
@@ -275,13 +333,13 @@ export default function ReportsPage() {
 
     setLoading(true);
     void loadDashboard();
-    const interval = window.setInterval(loadDashboard, 10000);
+    const interval = rangeMode === "preset" ? window.setInterval(loadDashboard, 10000) : null;
 
     return () => {
       cancelled = true;
-      window.clearInterval(interval);
+      if (interval) window.clearInterval(interval);
     };
-  }, [selectedFarm, selectedRange.hours]);
+  }, [bucketMs, customEndAt, customStartAt, rangeMode, selectedFarm, selectedRange.hours]);
 
   useEffect(() => {
     if (!payload.gardens.length) {
@@ -372,14 +430,14 @@ export default function ReportsPage() {
   const humidityAirTheory = getMetricTheory("humidityAir");
   const humiditySoilTheory = getMetricTheory("humiditySoil");
   const lightTheory = getMetricTheory("light");
-  const temperatureAnalysis = selectedGarden ? analyzeMetricSeries("temperature", gardenSeries, selectedThreshold, selectedGarden.name, selectedRange.label) : "";
-  const humidityAirAnalysis = selectedGarden ? analyzeMetricSeries("humidityAir", gardenSeries, selectedThreshold, selectedGarden.name, selectedRange.label) : "";
-  const humiditySoilAnalysis = selectedGarden ? analyzeMetricSeries("humiditySoil", gardenSeries, selectedThreshold, selectedGarden.name, selectedRange.label) : "";
-  const lightAnalysis = selectedGarden ? analyzeMetricSeries("light", gardenSeries, selectedThreshold, selectedGarden.name, selectedRange.label) : "";
+  const temperatureAnalysis = selectedGarden ? analyzeMetricSeries("temperature", gardenSeries, selectedThreshold, selectedGarden.name, effectiveRangeLabel) : "";
+  const humidityAirAnalysis = selectedGarden ? analyzeMetricSeries("humidityAir", gardenSeries, selectedThreshold, selectedGarden.name, effectiveRangeLabel) : "";
+  const humiditySoilAnalysis = selectedGarden ? analyzeMetricSeries("humiditySoil", gardenSeries, selectedThreshold, selectedGarden.name, effectiveRangeLabel) : "";
+  const lightAnalysis = selectedGarden ? analyzeMetricSeries("light", gardenSeries, selectedThreshold, selectedGarden.name, effectiveRangeLabel) : "";
   const correlationTheory = "\u0042i\u1ec3u \u0111\u1ed3 t\u01b0\u01a1ng quan gi\u00fap xem hai ch\u1ec9 s\u1ed1 c\u00f3 bi\u1ebfn \u0111\u1ed9ng c\u00f9ng chi\u1ec1u hay kh\u00f4ng. C\u1ee5m \u0111i\u1ec3m t\u1eadp trung th\u1ec3 hi\u1ec7n tr\u1ea1ng th\u00e1i \u1ed5n \u0111\u1ecbnh, c\u00f2n \u0111i\u1ec3m ph\u00e2n t\u00e1n th\u1ec3 hi\u1ec7n m\u00f4i tr\u01b0\u1eddng thay \u0111\u1ed5i m\u1ea1nh theo th\u1eddi gian.";
-  const correlationAnalysis = selectedGarden ? analyzeCorrelation(correlationPair, correlationData, selectedGarden.name, selectedRange.label) : "";
+  const correlationAnalysis = selectedGarden ? analyzeCorrelation(correlationPair, correlationData, selectedGarden.name, effectiveRangeLabel) : "";
   const distributionTheory = "\u0042i\u1ec3u \u0111\u1ed3 ph\u00e2n lo\u1ea1i theo ng\u01b0\u1ee1ng d\u00f9ng ng\u01b0\u1ee1ng c\u1ea5u h\u00ecnh c\u1ee7a t\u1eebng khu v\u01b0\u1eddn \u0111\u1ec3 \u0111\u1ebfm s\u1ed1 m\u1ed1c d\u1eef li\u1ec7u thu\u1ed9c nh\u00f3m th\u1ea5p, h\u1ee3p l\u00fd ho\u1eb7c cao.";
-  const distributionAnalysis = selectedGarden ? analyzeDistribution(distributionData, selectedGarden.name, selectedRange.label) : "";
+  const distributionAnalysis = selectedGarden ? analyzeDistribution(distributionData, selectedGarden.name, effectiveRangeLabel) : "";
 
   const avgTemperature = selectedSummary?.temperature ?? averageOf(gardenSeries.map((point) => point.temperature).filter((value): value is number => typeof value === "number"));
   const avgSoilHumidity = selectedSummary?.humiditySoil ?? averageOf(gardenSeries.map((point) => point.humiditySoil).filter((value): value is number => typeof value === "number"));
@@ -390,7 +448,7 @@ export default function ReportsPage() {
       if (schedule.timeConfig?.durationMin) return sum + schedule.timeConfig.durationMin;
       if (schedule.thresholdConfig?.durationMin) return sum + schedule.thresholdConfig.durationMin;
       return sum + 30;
-    }, 0) / 60) * Math.max(1, selectedRange.hours / 24);
+    }, 0) / 60) * Math.max(1, activeRangeHours / 24);
 
   const statCards = [
     { label: "Nhiệt độ", value: avgTemperature.toFixed(1), unit: "°C", icon: Thermometer, color: "#E67E22" },
@@ -444,6 +502,7 @@ export default function ReportsPage() {
           </div>
         )}
 
+        {false && (
         <div className="flex flex-wrap items-center justify-between gap-3" data-tour="reports-filters">
           <div className="flex flex-wrap items-center gap-2 rounded-[8px] border border-[#E2E8E4] bg-white p-1">
             {RANGE_OPTIONS.map((option) => (
@@ -477,6 +536,126 @@ export default function ReportsPage() {
               Cập nhật dữ liệu mỗi 10 giây từ database
             </div>
           </div>
+        </div>
+        )}
+
+        <div className="space-y-3" data-tour="reports-filters">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setRangeMode("preset")}
+                className={cn(
+                  "rounded-full px-3 py-1.5 text-[0.8125rem] font-medium transition-colors",
+                  rangeMode === "preset" ? "bg-[#1B4332] text-white" : "bg-[#F0FAF3] text-[#2F5D45]",
+                )}
+              >
+                Preset nhanh
+              </button>
+              <button
+                type="button"
+                onClick={() => setRangeMode("custom")}
+                className={cn(
+                  "rounded-full px-3 py-1.5 text-[0.8125rem] font-medium transition-colors",
+                  rangeMode === "custom" ? "bg-[#1B4332] text-white" : "bg-[#F0FAF3] text-[#2F5D45]",
+                )}
+              >
+                Chon ngay gio
+              </button>
+              <div className="rounded-[8px] border border-[#E2E8E4] bg-white px-3 py-2 text-[0.8125rem] text-[#5C7A6A]">
+                Bucket {formatResolutionLabel(bucketMs)}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <select
+                className="rounded-[8px] border border-[#E2E8E4] bg-white px-3 py-2 text-[0.8125rem] text-[#1A2E1F]"
+                value={selectedGarden?.id ?? ""}
+                onChange={(event) => setSelectedGardenId(event.target.value)}
+              >
+                {payload.gardens.map((garden) => (
+                  <option key={garden.id} value={garden.id}>
+                    {garden.name} - {garden.plantLabel}
+                  </option>
+                ))}
+              </select>
+
+              <div className="rounded-[8px] border border-[#E2E8E4] bg-white px-3 py-2 text-[0.8125rem] text-[#5C7A6A]">
+                {rangeMode === "preset" ? "Cap nhat tu dong moi 10 giay" : "Dang khoa theo khoang thoi gian cu the"}
+              </div>
+            </div>
+          </div>
+
+          {rangeMode === "preset" ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-[8px] border border-[#E2E8E4] bg-white p-1">
+              {RANGE_OPTIONS.map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => setRange(option.key)}
+                  className={cn(
+                    "rounded-[6px] px-3 py-1.5 text-[0.8125rem] font-medium transition-colors",
+                    range === option.key ? "bg-[#1B4332] text-white" : "text-[#5C7A6A] hover:bg-[#F0FAF3]",
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 rounded-[12px] border border-[#E2E8E4] bg-white p-3 md:grid-cols-[1fr_1fr_auto]">
+              <label className="flex flex-col gap-1">
+                <span className="text-[0.75rem] text-[#5C7A6A]">Tu luc</span>
+                <input
+                  type="datetime-local"
+                  step="1"
+                  value={customStartAt}
+                  onChange={(event) => setCustomStartAt(event.target.value)}
+                  className="rounded-[8px] border border-[#E2E8E4] bg-white px-3 py-2 text-[0.8125rem] text-[#1A2E1F]"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[0.75rem] text-[#5C7A6A]">Den luc</span>
+                <input
+                  type="datetime-local"
+                  step="1"
+                  value={customEndAt}
+                  onChange={(event) => setCustomEndAt(event.target.value)}
+                  className="rounded-[8px] border border-[#E2E8E4] bg-white px-3 py-2 text-[0.8125rem] text-[#1A2E1F]"
+                />
+              </label>
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomStartAt(toInputValue(new Date(Date.now() - 15 * 60_000)));
+                    setCustomEndAt(toInputValue(new Date()));
+                  }}
+                  className="rounded-[8px] border border-[#E2E8E4] bg-[#F7F8F6] px-3 py-2 text-[0.8125rem] text-[#2F5D45] hover:bg-[#F0FAF3]"
+                >
+                  Dat lai 15 phut
+                </button>
+              </div>
+            </div>
+          )}
+
+          {isShortRange && (
+            <div className="flex flex-wrap items-center gap-2 rounded-[8px] border border-[#E2E8E4] bg-white p-1">
+              {RESOLUTION_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setBucketMs(option.value)}
+                  className={cn(
+                    "rounded-[6px] px-3 py-1.5 text-[0.8125rem] font-medium transition-colors",
+                    bucketMs === option.value ? "bg-[#1B4332] text-white" : "text-[#5C7A6A] hover:bg-[#F0FAF3]",
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {loading && <div className="card p-6 text-[0.875rem] text-[#5C7A6A]">Đang tải dashboard từ database...</div>}
@@ -514,7 +693,7 @@ export default function ReportsPage() {
                 <div className="mb-4 flex items-center justify-between gap-3" data-tour="reports-assistant">
                   <div>
                     <h3 className="text-[0.9375rem] font-semibold text-[#1A2E1F]">{"Xu hướng nhiệt độ của "}{selectedGarden.name}</h3>
-                    <span className="text-[0.75rem] text-[#5C7A6A]">{selectedRange.label}</span>
+                    <span className="text-[0.75rem] text-[#5C7A6A]">{effectiveRangeLabel}</span>
                   </div>
                   <ChartAssistant chartTitle={`Biểu đồ nhiệt độ - ${selectedGarden.name}`} theoryText={temperatureTheory} analysisText={temperatureAnalysis} />
                 </div>
@@ -527,11 +706,18 @@ export default function ReportsPage() {
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={gardenSeries}>
                         <CartesianGrid stroke="#E2E8E4" strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="time" tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
+                        <XAxis
+                          dataKey="time"
+                          tick={{ fontSize: 10, fill: "#5C7A6A" }}
+                          tickLine={false}
+                          axisLine={false}
+                          minTickGap={isShortRange ? (bucketMs < 1000 ? 48 : 28) : 12}
+                          tickFormatter={(value) => isShortRange ? formatDenseTickLabel(value, bucketMs) : value}
+                        />
                         <YAxis tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
                         <Tooltip />
                         <Line
-                          type={isShortRange ? "stepAfter" : "monotone"}
+                          type="monotone"
                           dataKey="temperature"
                           stroke={selectedGarden.color}
                           strokeWidth={2}
@@ -563,13 +749,20 @@ export default function ReportsPage() {
                     <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart data={combinedTrendData}>
                         <CartesianGrid stroke="#E2E8E4" strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="time" tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
+                        <XAxis
+                          dataKey="time"
+                          tick={{ fontSize: 10, fill: "#5C7A6A" }}
+                          tickLine={false}
+                          axisLine={false}
+                          minTickGap={isShortRange ? (bucketMs < 1000 ? 48 : 28) : 12}
+                          tickFormatter={(value) => isShortRange ? formatDenseTickLabel(value, bucketMs) : value}
+                        />
                         <YAxis yAxisId="left" tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
                         <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
                         <Tooltip />
                         <Legend />
-                        <Bar yAxisId="left" dataKey="humiditySoil" fill="#2980B9" name="Độ ẩm đất (%)" radius={[4, 4, 0, 0]} />
-                        <Line yAxisId="left" type="monotone" dataKey="temperature" stroke="#E67E22" strokeWidth={2} dot={false} name="Nhiệt độ (°C)" />
+                        <Line yAxisId="left" type="monotone" dataKey="humiditySoil" stroke="#2980B9" strokeWidth={2} dot={isShortRange ? { r: 2 } : false} name="Độ ẩm đất (%)" connectNulls />
+                        <Line yAxisId="left" type="monotone" dataKey="temperature" stroke="#E67E22" strokeWidth={2} dot={isShortRange ? { r: 2 } : false} name="Nhiệt độ (°C)" connectNulls />
                         <Line yAxisId="right" type="monotone" dataKey="light" stroke="#F39C12" strokeWidth={2} dot={false} name="Ánh sáng (k lux)" />
                       </ComposedChart>
                     </ResponsiveContainer>
@@ -596,10 +789,17 @@ export default function ReportsPage() {
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={humidityAirTrendData}>
                         <CartesianGrid stroke="#E2E8E4" strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="time" tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
+                        <XAxis
+                          dataKey="time"
+                          tick={{ fontSize: 10, fill: "#5C7A6A" }}
+                          tickLine={false}
+                          axisLine={false}
+                          minTickGap={isShortRange ? (bucketMs < 1000 ? 48 : 28) : 12}
+                          tickFormatter={(value) => isShortRange ? formatDenseTickLabel(value, bucketMs) : value}
+                        />
                         <YAxis tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
                         <Tooltip />
-                        <Line type={isShortRange ? "stepAfter" : "monotone"} dataKey="value" stroke="#2D9CDB" strokeWidth={2} dot={isShortRange ? { r: 2 } : false} connectNulls />
+                        <Line type="monotone" dataKey="value" stroke="#2D9CDB" strokeWidth={2} dot={isShortRange ? { r: 2 } : false} connectNulls />
                       </LineChart>
                     </ResponsiveContainer>
                   )}
@@ -623,10 +823,17 @@ export default function ReportsPage() {
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={humiditySoilTrendData}>
                         <CartesianGrid stroke="#E2E8E4" strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="time" tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
+                        <XAxis
+                          dataKey="time"
+                          tick={{ fontSize: 10, fill: "#5C7A6A" }}
+                          tickLine={false}
+                          axisLine={false}
+                          minTickGap={isShortRange ? (bucketMs < 1000 ? 48 : 28) : 12}
+                          tickFormatter={(value) => isShortRange ? formatDenseTickLabel(value, bucketMs) : value}
+                        />
                         <YAxis tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
                         <Tooltip />
-                        <Line type={isShortRange ? "stepAfter" : "monotone"} dataKey="value" stroke="#2980B9" strokeWidth={2} dot={isShortRange ? { r: 2 } : false} connectNulls />
+                        <Line type="monotone" dataKey="value" stroke="#2980B9" strokeWidth={2} dot={isShortRange ? { r: 2 } : false} connectNulls />
                       </LineChart>
                     </ResponsiveContainer>
                   )}
@@ -650,7 +857,14 @@ export default function ReportsPage() {
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={lightTrendData}>
                         <CartesianGrid stroke="#E2E8E4" strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="time" tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
+                        <XAxis
+                          dataKey="time"
+                          tick={{ fontSize: 10, fill: "#5C7A6A" }}
+                          tickLine={false}
+                          axisLine={false}
+                          minTickGap={isShortRange ? (bucketMs < 1000 ? 48 : 28) : 12}
+                          tickFormatter={(value) => isShortRange ? formatDenseTickLabel(value, bucketMs) : value}
+                        />
                         <YAxis tick={{ fontSize: 10, fill: "#5C7A6A" }} tickLine={false} axisLine={false} />
                         <Tooltip />
                         <Line type={isShortRange ? "stepAfter" : "monotone"} dataKey="value" stroke="#F39C12" strokeWidth={2} dot={isShortRange ? { r: 2 } : false} connectNulls />

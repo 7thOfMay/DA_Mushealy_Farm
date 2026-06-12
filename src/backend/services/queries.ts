@@ -206,8 +206,20 @@ export async function fetchSensorSummaries() {
   );
 }
 
-export async function fetchSensorChartData(zoneIds: number[], hours = 24) {
+export async function fetchSensorChartData(
+  zoneIds: number[],
+  hours = 24,
+  options?: { startAt?: string | null; endAt?: string | null },
+) {
   const placeholders = zoneIds.map((_, i) => `$${i + 1}`).join(",");
+  const hasAbsoluteRange = Boolean(options?.startAt && options?.endAt);
+  const timeClause = hasAbsoluteRange
+    ? `sd.recorded_at >= $${zoneIds.length + 1}::timestamp AND sd.recorded_at <= $${zoneIds.length + 2}::timestamp`
+    : `sd.recorded_at >= NOW() - INTERVAL '1 hour' * $${zoneIds.length + 1}`;
+  const params = hasAbsoluteRange
+    ? [...zoneIds, options!.startAt!, options!.endAt!]
+    : [...zoneIds, hours];
+
   const rows = await query(`
     SELECT d.zone_id, d.device_type_id, sd.value, sd.recorded_at
     FROM sensor_data sd
@@ -215,9 +227,9 @@ export async function fetchSensorChartData(zoneIds: number[], hours = 24) {
     JOIN device_types dt ON d.device_type_id = dt.device_type_id
     WHERE dt.category = 'sensor'
       AND d.zone_id IN (${placeholders})
-      AND sd.recorded_at >= NOW() - INTERVAL '1 hour' * $${zoneIds.length + 1}
+      AND ${timeClause}
     ORDER BY sd.recorded_at ASC
-  `, [...zoneIds, hours]);
+  `, params);
 
   return rows;
 }
