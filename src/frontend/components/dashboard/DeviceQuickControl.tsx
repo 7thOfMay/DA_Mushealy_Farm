@@ -83,7 +83,7 @@ export function DeviceQuickControl() {
                     });
                   }}
                   size="sm"
-                  disabled={loggedInUser?.role !== 'ADMIN' && device.status !== "online" && device.status !== "active"}
+                  disabled={false}
                 />
               </div>
             </div>
