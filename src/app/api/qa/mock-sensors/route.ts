@@ -9,7 +9,7 @@ type SensorDeviceRow = {
   device_type_id: number;
 };
 
-type SeedAction = "seed" | "cleanup" | "realtime";
+type SeedAction = "seed" | "cleanup" | "realtime" | "reset-devices";
 
 type SeedRequestBody = {
   action?: SeedAction;
@@ -218,6 +218,12 @@ async function insertRealtimeBurstRows(
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as SeedRequestBody;
   const action = body.action ?? "seed";
+
+  // Reset tất cả thiết bị về 'online' (kết nối, chưa hoạt động)
+  if (action === "reset-devices") {
+    await query(`UPDATE devices SET status = 'online', last_updated = NOW()`, []);
+    return NextResponse.json({ ok: true, action: "reset-devices", message: "Tất cả thiết bị đã được reset về trạng thái online" });
+  }
 
   const devices = await loadTargetDevices();
   if (!devices.length) {
