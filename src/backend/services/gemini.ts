@@ -50,6 +50,15 @@ function extractText(response: GeminiResponse) {
     .trim();
 }
 
+function normalizeAssistantText(text: string) {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export function isGeminiConfigured() {
   return !!process.env.GEMINI_API_KEY;
 }
@@ -129,5 +138,5 @@ export async function generateGardenAdvice(params: {
     throw new Error("Gemini returned an empty response");
   }
 
-  return text;
+  return normalizeAssistantText(text);
 }
