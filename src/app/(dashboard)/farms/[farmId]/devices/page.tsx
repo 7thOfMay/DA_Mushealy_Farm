@@ -7,7 +7,7 @@ import { ErrorState } from "@/frontend/components/shared/ErrorStates";
 import { useAppStore } from "@/frontend/context/store";
 import { Badge, EmptyState, FormErrorBanner, InlineFieldError, StatusDot } from "@/frontend/components/shared/index";
 import { ToggleSwitch } from "@/frontend/components/shared/ToggleSwitch";
-import { RGBController } from "@/frontend/components/devices/RGBController";
+
 import { cn, timeAgo } from "@/frontend/utils/utils";
 import { apiCreateDevice, apiUpdateDevice, apiSendDeviceCommand } from "@/frontend/services/client";
 import { lockDeviceToggle } from "@/frontend/hooks/useApiHydration";
@@ -303,13 +303,31 @@ export default function FarmDevicesPage() {
                     <p className="text-[0.75rem] text-[#5C7A6A]">{device.gardenName}</p>
                   </div>
                   {isActuator ? (
-                    <button
-                      onClick={async () => { const cmd = device.isOn ? 'turn_off' : 'turn_on'; try { await apiUpdateDevice(device.id, undefined, device.isOn ? 'online' : 'active'); await apiSendDeviceCommand(device.id, cmd, {}, loggedInUser?.id); } catch {} lockDeviceToggle(device.id); toggleDevice(device.id); addToast({ type: 'success', message: `${device.isOn ? 'Đã tắt' : 'Đã bật'} ${device.name}` }); }}
-                      className="w-full py-2 rounded-[8px] text-[0.8125rem] font-semibold transition-colors"
-                      style={{ backgroundColor: device.isOn ? '#1B4332' : '#E2E8E4', color: device.isOn ? '#fff' : '#1A2E1F' }}
-                    >
-                      {device.isOn ? '⏹ Tắt thiết bị' : '▶ Bật thiết bị'}
-                    </button>
+                    <div className="flex items-center justify-between pt-1">
+                      <div className="flex items-center gap-2">
+                        <ToggleSwitch
+                          checked={device.isOn}
+                          onChange={async () => {
+                            const cmd = device.isOn ? 'turn_off' : 'turn_on';
+                            try {
+                              await apiUpdateDevice(device.id, undefined, device.isOn ? 'online' : 'active');
+                              await apiSendDeviceCommand(device.id, cmd, {}, loggedInUser?.id);
+                            } catch {}
+                            lockDeviceToggle(device.id);
+                            toggleDevice(device.id);
+                            addToast({ type: 'success', message: `${device.isOn ? 'Đã tắt' : 'Đã bật'} ${device.name}` });
+                          }}
+                          disabled={false}
+                          size="sm"
+                        />
+                        <span className="text-[0.8125rem] font-semibold" style={{ color: device.isOn ? '#27AE60' : '#5C7A6A' }}>
+                          {device.isOn ? 'Đang bật' : 'Đã tắt'}
+                        </span>
+                      </div>
+                      <Badge variant={device.status === "active" ? "ok" : device.status === "online" ? "default" : device.status === "error" ? "danger" : "default"}>
+                        {device.status === "active" ? "ACTIVE" : device.status === "online" ? "ONLINE" : device.status}
+                      </Badge>
+                    </div>
                   ) : (
                     <div className="flex items-center justify-between">
                       <p className="text-[1.375rem] font-bold text-[#1A2E1F]" style={{ fontFamily: "'DM Mono', monospace" }}>
@@ -320,17 +338,6 @@ export default function FarmDevicesPage() {
                         {device.status}
                       </Badge>
                     </div>
-                  )}
-                  {device.type === "led_rgb" && (
-                    <RGBController
-                      enabled={(device.status === "online" || device.status === "active") && !!device.isOn}
-                      onApply={(payload) => {
-                        addToast({
-                          type: "info",
-                          message: `Da cap nhat RGB ${device.name}: ${payload.color} / ${payload.intensity}%${payload.blink ? " / blink" : ""}`,
-                        });
-                      }}
-                    />
                   )}
                   <p className="text-[0.6875rem] text-[#5C7A6A] font-mono bg-[#F4F6F4] rounded-[6px] px-2 py-1">{hardwareId}</p>
                 </div>
