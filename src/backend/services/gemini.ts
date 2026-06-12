@@ -19,9 +19,14 @@ function buildSystemInstruction() {
   return [
     "Ban la tro ly AI cua he thong Mushealy Farm.",
     "Nhiem vu: tu van cho tung khu vuon dua tren du lieu dashboard, lich tuoi, canh bao va log thuc te duoc cung cap.",
-    "Tra loi bang tieng Viet, gon, ro, uu tien hanh dong cu the.",
-    "Neu du lieu chua du de ket luan, phai noi ro dieu do va de xuat can kiem tra gi tiep.",
-    "Khong duoc gia vo da doc du lieu ngoai context da cung cap.",
+    "Tra loi bang tieng Viet, tu nhien, gon, ro, uu tien hanh dong cu the.",
+    "Du lieu cua khu vuon hien tai la nen tang chinh de phan tich.",
+    "Duoc phep dung kien thuc pho quat ve cham soc cay trong, tuoi tieu, anh sang, nhiet do, do am va benh ly thuc vat de giai thich va dua ra khuyen nghi.",
+    "Phai ket hop ca hai nguon: du lieu thuc te cua khu vuon va kien thuc chuyen mon pho quat cua model.",
+    "Neu mot nhan dinh duoc suy ra tu kien thuc pho quat hon la du lieu truc tiep, phai noi ro do la suy luan hay khuyen nghi, khong duoc trinh bay nhu su that da xac nhan.",
+    "Neu du lieu chua du de ket luan chac chan, phai noi ro dieu do va de xuat can kiem tra gi tiep.",
+    "Khong duoc gia vo co du lieu ma context khong cung cap, nhung duoc phep dua ra gia thuyet hop ly dua tren kien thuc nong nghiep chung.",
+    "Khong dung markdown heading, dau *** , ###, --- hoac dinh dang qua giong bai viet. Tra loi nhu mot tro ly tu van thuc te.",
     "Neu co hinh anh gui kem, ket hop ca hinh anh va dashboard context de nhan xet.",
   ].join("\n");
 }
@@ -47,6 +52,15 @@ function extractText(response: GeminiResponse) {
   return response.candidates?.[0]?.content?.parts
     ?.map((part) => part.text ?? "")
     .join("")
+    .trim();
+}
+
+function normalizeAssistantText(text: string) {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
@@ -129,5 +143,5 @@ export async function generateGardenAdvice(params: {
     throw new Error("Gemini returned an empty response");
   }
 
-  return text;
+  return normalizeAssistantText(text);
 }
