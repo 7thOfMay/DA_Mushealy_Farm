@@ -1,7 +1,7 @@
 import { query, queryOne } from "@/backend/config/db";
 
 const MISSED_IRRIGATION_LOCK_ID = 48217031;
-const MISSED_GRACE_MINUTES = 10;
+const MISSED_GRACE_SECONDS = 60;
 const LOCAL_TIMEZONE = "Asia/Bangkok";
 
 type ScheduleCandidateRow = {
@@ -14,6 +14,7 @@ type ScheduleCandidateRow = {
   device_name: string;
   device_status: string;
   start_time: string;
+  end_time: string | null;
   duration_seconds: number | null;
   schedule_type: "daily" | "weekly";
   day_of_week: number | null;
@@ -73,6 +74,7 @@ export async function ensureMissedIrrigationAlerts() {
           d.device_name,
           d.status AS device_status,
           s.start_time::text AS start_time,
+          s.end_time::text AS end_time,
           s.duration_seconds,
           s.schedule_type,
           s.day_of_week
@@ -96,7 +98,14 @@ export async function ensureMissedIrrigationAlerts() {
             s.schedule_type = 'daily'
             OR (s.schedule_type = 'weekly' AND s.day_of_week = EXTRACT(DOW FROM r.local_now)::int)
           )
-          AND r.local_now >= date_trunc('day', r.local_now) + s.start_time + INTERVAL '1 minute' * $1
+          AND r.local_now >= (
+            date_trunc('day', r.local_now)
+            + COALESCE(
+              s.end_time,
+              s.start_time + make_interval(secs => COALESCE(NULLIF(s.duration_seconds, 0), 300))
+            )
+            + make_interval(secs => $1)
+          )
           AND NOT EXISTS (
             SELECT 1
             FROM device_commands dc
@@ -104,11 +113,18 @@ export async function ensureMissedIrrigationAlerts() {
               AND dc.command_type IN ('turn_on', 'pump_on', 'start_pump', 'start_irrigation')
               AND dc.status IN ('pending', 'sent', 'executed')
               AND ((dc.issued_at AT TIME ZONE 'UTC') AT TIME ZONE '${LOCAL_TIMEZONE}') >= date_trunc('day', r.local_now) + s.start_time - INTERVAL '5 minutes'
-              AND ((dc.issued_at AT TIME ZONE 'UTC') AT TIME ZONE '${LOCAL_TIMEZONE}') <= r.local_now
+              AND ((dc.issued_at AT TIME ZONE 'UTC') AT TIME ZONE '${LOCAL_TIMEZONE}') <= (
+                date_trunc('day', r.local_now)
+                + COALESCE(
+                  s.end_time,
+                  s.start_time + make_interval(secs => COALESCE(NULLIF(s.duration_seconds, 0), 300))
+                )
+                + make_interval(secs => $1)
+              )
           )
         ORDER BY s.schedule_id
       `,
-      [MISSED_GRACE_MINUTES],
+      [MISSED_GRACE_SECONDS],
     );
 
     for (const row of candidates) {
@@ -183,6 +199,7 @@ export async function ensureMissedIrrigationAlerts() {
             deviceId: row.device_id,
             deviceName: row.device_name,
             scheduledTime: toTimeLabel(row.start_time),
+            scheduledEndTime: row.end_time ? row.end_time.slice(0, 5) : null,
             durationSeconds: row.duration_seconds ?? null,
             reason: buildCause(row.device_status),
           }),
