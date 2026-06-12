@@ -2,6 +2,7 @@ import { query, queryOne } from "@/backend/config/db";
 
 const MISSED_IRRIGATION_LOCK_ID = 48217031;
 const MISSED_GRACE_MINUTES = 10;
+const LOCAL_TIMEZONE = "Asia/Bangkok";
 
 type ScheduleCandidateRow = {
   schedule_id: number;
@@ -59,6 +60,9 @@ export async function ensureMissedIrrigationAlerts() {
   try {
     const candidates = await query<ScheduleCandidateRow>(
       `
+        WITH runtime AS (
+          SELECT (NOW() AT TIME ZONE '${LOCAL_TIMEZONE}') AS local_now
+        )
         SELECT
           s.schedule_id,
           s.zone_id,
@@ -77,6 +81,7 @@ export async function ensureMissedIrrigationAlerts() {
         JOIN farms f ON f.farm_id = z.farm_id
         JOIN devices d ON d.device_id = s.device_id
         JOIN device_types dt ON dt.device_type_id = d.device_type_id
+        CROSS JOIN runtime r
         WHERE s.is_active = TRUE
           AND s.execution_mode = 'automatic'
           AND s.schedule_type IN ('daily', 'weekly')
@@ -89,17 +94,17 @@ export async function ensureMissedIrrigationAlerts() {
           )
           AND (
             s.schedule_type = 'daily'
-            OR (s.schedule_type = 'weekly' AND s.day_of_week = EXTRACT(DOW FROM NOW())::int)
+            OR (s.schedule_type = 'weekly' AND s.day_of_week = EXTRACT(DOW FROM r.local_now)::int)
           )
-          AND NOW() >= date_trunc('day', NOW()) + s.start_time + INTERVAL '1 minute' * $1
+          AND r.local_now >= date_trunc('day', r.local_now) + s.start_time + INTERVAL '1 minute' * $1
           AND NOT EXISTS (
             SELECT 1
             FROM device_commands dc
             WHERE dc.device_id = s.device_id
               AND dc.command_type IN ('turn_on', 'pump_on', 'start_pump', 'start_irrigation')
               AND dc.status IN ('pending', 'sent', 'executed')
-              AND dc.issued_at >= date_trunc('day', NOW()) + s.start_time - INTERVAL '5 minutes'
-              AND dc.issued_at <= NOW()
+              AND ((dc.issued_at AT TIME ZONE 'UTC') AT TIME ZONE '${LOCAL_TIMEZONE}') >= date_trunc('day', r.local_now) + s.start_time - INTERVAL '5 minutes'
+              AND ((dc.issued_at AT TIME ZONE 'UTC') AT TIME ZONE '${LOCAL_TIMEZONE}') <= r.local_now
           )
         ORDER BY s.schedule_id
       `,
@@ -110,13 +115,17 @@ export async function ensureMissedIrrigationAlerts() {
       const message = buildAlertMessage(row);
       const existingAlert = await queryOne<{ alert_id: number }>(
         `
+          WITH runtime AS (
+            SELECT (NOW() AT TIME ZONE '${LOCAL_TIMEZONE}') AS local_now
+          )
           SELECT alert_id
           FROM alerts
+          CROSS JOIN runtime r
           WHERE zone_id = $1
             AND device_id = $2
             AND alert_type = 'system'
             AND source_type = 'system'
-            AND created_at >= date_trunc('day', NOW())
+            AND ((created_at AT TIME ZONE 'UTC') AT TIME ZONE '${LOCAL_TIMEZONE}') >= date_trunc('day', r.local_now)
             AND message = $3
           LIMIT 1
         `,
