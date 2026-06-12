@@ -3,6 +3,7 @@ import type { AIChatMessage, AIDashboardContext } from "@/types";
 const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
 type GeminiCandidate = {
+  finishReason?: string;
   content?: {
     parts?: Array<{ text?: string }>;
   };
@@ -36,7 +37,7 @@ function buildContextText(context: AIDashboardContext) {
 }
 
 function buildConversation(messages: AIChatMessage[]) {
-  return messages.map((message) => ({
+  return messages.map<{ role: "user" | "model"; parts: Array<Record<string, unknown>> }>((message) => ({
     role: message.role === "assistant" ? "model" : "user",
     parts: [{ text: message.content }],
   }));
@@ -62,6 +63,54 @@ function normalizeAssistantText(text: string) {
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function shouldContinueText(text: string, finishReason?: string) {
+  if (!text.trim()) return false;
+
+  if (finishReason && finishReason !== "STOP") {
+    return true;
+  }
+
+  return !/[.!?…:"')\]»”]$/.test(text.trim());
+}
+
+async function requestGemini(params: {
+  apiKey: string;
+  history: Array<{ role: "user" | "model"; parts: Array<Record<string, unknown>> }>;
+  userParts: Array<Record<string, unknown>>;
+  maxOutputTokens?: number;
+}) {
+  const response = await fetch(`${GEMINI_ENDPOINT}?key=${encodeURIComponent(params.apiKey)}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      system_instruction: {
+        parts: [{ text: buildSystemInstruction() }],
+      },
+      contents: [
+        ...params.history,
+        {
+          role: "user",
+          parts: params.userParts,
+        },
+      ],
+      generationConfig: {
+        temperature: 0.3,
+        topP: 0.9,
+        maxOutputTokens: params.maxOutputTokens ?? 1800,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Gemini API error ${response.status}: ${errorText}`);
+  }
+
+  return (await response.json()) as GeminiResponse;
 }
 
 export function isGeminiConfigured() {
@@ -104,43 +153,48 @@ export async function generateGardenAdvice(params: {
     }
   }
 
-  const response = await fetch(`${GEMINI_ENDPOINT}?key=${encodeURIComponent(apiKey)}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      system_instruction: {
-        parts: [{ text: buildSystemInstruction() }],
-      },
-      contents: [
-        ...buildConversation(params.history),
-        {
-          role: "user",
-          parts: userParts,
-        },
-      ],
-      generationConfig: {
-        temperature: 0.3,
-        topP: 0.9,
-        maxOutputTokens: 1200,
-      },
-    }),
+  const history = buildConversation(params.history);
+  const json = await requestGemini({
+    apiKey,
+    history,
+    userParts,
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Gemini API error ${response.status}: ${errorText}`);
-  }
-
-  const json = (await response.json()) as GeminiResponse;
-  const text = extractText(json);
+  let text = extractText(json);
+  const finishReason = json.candidates?.[0]?.finishReason;
 
   if (!text) {
     if (json.promptFeedback?.blockReason) {
       throw new Error(`Gemini blocked the response: ${json.promptFeedback.blockReason}`);
     }
     throw new Error("Gemini returned an empty response");
+  }
+
+  if (shouldContinueText(text, finishReason)) {
+    const continuation = await requestGemini({
+      apiKey,
+      history: [
+        ...history,
+        {
+          role: "user",
+          parts: userParts,
+        },
+        {
+          role: "model",
+          parts: [{ text }],
+        },
+      ],
+      userParts: [
+        {
+          text: "Doan tren dang bi dung giua chung. Hay viet tiep phan con lai ngay sau do, khong lap lai tu dau, khong them tieu de.",
+        },
+      ],
+      maxOutputTokens: 900,
+    });
+
+    const continuationText = extractText(continuation);
+    if (continuationText) {
+      text = `${text.trimEnd()} ${continuationText.trimStart()}`;
+    }
   }
 
   return normalizeAssistantText(text);
