@@ -14,6 +14,9 @@ const FEED_TO_DEVICE_CODE: Record<string, string> = {
   light_status: "DEV-LAMP-01",
 };
 
+// Keys là trạng thái bật/tắt của actuator (không phải sensor đo lường)
+const ACTUATOR_STATUS_KEYS = new Set(["pump_status", "light_status"]);
+
 export async function POST(request: Request) {
   let body: Record<string, unknown>;
   try {
@@ -71,15 +74,27 @@ export async function POST(request: Request) {
         [row.device_id, numVal, now],
       ),
     );
+
+    // Nếu là key actuator (pump_status / light_status) → cập nhật đúng trạng thái
+    // active = đang bật (val=1/true), online = kết nối nhưng đang tắt (val=0/false)
+    if (ACTUATOR_STATUS_KEYS.has(key)) {
+      const actuatorStatus = numVal === 1 ? "active" : "online";
+      inserts.push(
+        query(
+          `UPDATE devices SET status = $1, last_updated = $2 WHERE device_id = $3`,
+          [actuatorStatus, now, row.device_id],
+        ),
+      );
+    }
   }
 
-  // Khi telemetry đến từ một zone → mark TẤT CẢ thiết bị trong zone đó là online
-  // (bao gồm cả pump, fan, valve không có feed riêng)
+  // Mark TẤT CẢ thiết bị sensor trong zone là online (chỉ những device chưa được update ở trên)
   const zoneIdPlaceholders = affectedZoneIds.map((_, i) => `$${i + 2}`).join(", ");
   inserts.push(
     query(
       `UPDATE devices SET status = 'online', last_updated = $1
-       WHERE zone_id IN (${zoneIdPlaceholders})`,
+       WHERE zone_id IN (${zoneIdPlaceholders})
+         AND status = 'offline'`,
       [now, ...affectedZoneIds],
     ),
   );
