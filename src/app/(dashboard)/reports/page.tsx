@@ -17,7 +17,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { AlertTriangle, Clock3, Droplets, Leaf, SunMedium, Thermometer } from "lucide-react";
+import { AlertTriangle, Clock3, Droplet, Droplets, Leaf, SunMedium, Thermometer } from "lucide-react";
 import { Topbar } from "@/frontend/components/layout/Topbar";
 import { ChartAssistant } from "@/frontend/components/shared/ChartAssistant";
 import { ErrorState } from "@/frontend/components/shared/ErrorStates";
@@ -440,6 +440,7 @@ export default function ReportsPage() {
   const distributionAnalysis = selectedGarden ? analyzeDistribution(distributionData, selectedGarden.name, effectiveRangeLabel) : "";
 
   const avgTemperature = selectedSummary?.temperature ?? averageOf(gardenSeries.map((point) => point.temperature).filter((value): value is number => typeof value === "number"));
+  const avgHumidityAir = selectedSummary?.humidityAir ?? averageOf(gardenSeries.map((point) => point.humidityAir).filter((value): value is number => typeof value === "number"));
   const avgSoilHumidity = selectedSummary?.humiditySoil ?? averageOf(gardenSeries.map((point) => point.humiditySoil).filter((value): value is number => typeof value === "number"));
   const avgLight = selectedSummary?.light ?? averageOf(gardenSeries.map((point) => point.light).filter((value): value is number => typeof value === "number"));
   const estimatedPumpHours =
@@ -452,6 +453,7 @@ export default function ReportsPage() {
 
   const statCards = [
     { label: "Nhiệt độ", value: avgTemperature.toFixed(1), unit: "°C", icon: Thermometer, color: "#E67E22" },
+    { label: "Độ ẩm không khí", value: avgHumidityAir.toFixed(1), unit: "%", icon: Droplet, color: "#2D9CDB" },
     { label: "Độ ẩm đất", value: avgSoilHumidity.toFixed(1), unit: "%", icon: Droplets, color: "#2980B9" },
     { label: "Ánh sáng", value: (avgLight / 1000).toFixed(1), unit: "k lux", icon: SunMedium, color: "#F39C12" },
     { label: "Giờ bơm ước tính", value: estimatedPumpHours.toFixed(1), unit: "h", icon: Clock3, color: "#1B4332" },
@@ -668,7 +670,7 @@ export default function ReportsPage() {
 
         {!loading && !error && selectedGarden && (
           <>
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 xl:grid-cols-5 lg:grid-cols-3">
               {statCards.map((card) => {
                 const Icon = card.icon;
                 return (
