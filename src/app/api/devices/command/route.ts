@@ -52,7 +52,8 @@ export async function POST(request: Request) {
   );
 
   // Gọi CoreIoT trực tiếp để điều khiển thiết bị vật lý
-  // Flow: Vercel → CoreIoT → IoT Device (không cần qua gateway)
+  // Gửi RPC xuống thiết bị qua CoreIoT
+  // Endpoint: POST /api/v1/{device_token}/rpc
   try {
     const deviceRow = await query<{ device_type_id: number }>(
       `SELECT device_type_id FROM devices WHERE device_id = $1`,
@@ -63,11 +64,10 @@ export async function POST(request: Request) {
 
     if (rpcMethod) {
       const isOn = body.command === "turn_on";
-      await fetch(`${COREIOT_URL}/api/v1/${COREIOT_TOKEN}/telemetry`, {
+      await fetch(`${COREIOT_URL}/api/v1/${COREIOT_TOKEN}/rpc`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          _trigger_rpc: true,
           method: rpcMethod,
           params: String(isOn),
         }),
@@ -75,7 +75,6 @@ export async function POST(request: Request) {
       });
     }
   } catch (err) {
-    // Không fail request nếu CoreIoT không trả lời (non-critical)
     console.warn("[Command] CoreIoT RPC failed (non-critical):", err);
   }
 
