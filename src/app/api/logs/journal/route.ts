@@ -110,6 +110,10 @@ function safeIso(value: Date | string | null | undefined) {
   return new Date(value).toISOString();
 }
 
+function toSecondKey(value: Date | string | null | undefined) {
+  return safeIso(value).slice(0, 19);
+}
+
 function metricLabel(metricType: string | null): JournalMetricType | undefined {
   switch (metricType) {
     case "temperature":
@@ -173,6 +177,31 @@ function buildCommonFilter(
   }
 
   return { params, where: clauses.join(" AND ") };
+}
+
+function dedupeSensorEntries(entries: JournalEntry[]) {
+  const seen = new Set<string>();
+
+  return entries.filter((entry) => {
+    if (entry.kind !== "sensor") {
+      return true;
+    }
+
+    const key = [
+      entry.kind,
+      entry.deviceId ?? "",
+      entry.metricType ?? "",
+      typeof entry.value === "number" ? entry.value.toFixed(2) : "",
+      toSecondKey(entry.timestamp),
+    ].join("|");
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
 }
 
 export async function GET(request: Request) {
@@ -336,7 +365,7 @@ export async function GET(request: Request) {
       })),
     ];
 
-    const filtered = entries
+    const filtered = dedupeSensorEntries(entries)
       .filter((entry) => (kinds.size > 0 ? kinds.has(entry.kind) : true))
       .filter((entry) => (metricTypeFilter && metricTypeFilter !== "all" ? entry.metricType === metricTypeFilter : true))
       .filter((entry) => {

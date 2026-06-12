@@ -59,6 +59,8 @@ type ChartResponse = {
   lightChartData: ChartDataPoint[];
 };
 
+const JOURNAL_POLL_INTERVAL = 3_000;
+
 const TIME_FILTERS: Array<{ key: TimeFilter; label: string; hours: number }> = [
   { key: "1h", label: "1 giờ", hours: 1 },
   { key: "24h", label: "Hôm nay", hours: 24 },
@@ -293,7 +295,7 @@ export default function LogsPage() {
 
     setLoading(true);
     void loadJournal();
-    const interval = window.setInterval(loadJournal, 10000);
+    const interval = window.setInterval(loadJournal, JOURNAL_POLL_INTERVAL);
 
     return () => {
       cancelled = true;
