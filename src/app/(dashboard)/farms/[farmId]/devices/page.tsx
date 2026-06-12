@@ -302,22 +302,25 @@ export default function FarmDevicesPage() {
                     <p className="font-semibold text-[0.9rem] text-[#1A2E1F] leading-tight">{device.name}</p>
                     <p className="text-[0.75rem] text-[#5C7A6A]">{device.gardenName}</p>
                   </div>
-                  <div className="flex items-center justify-between">
-                    {isActuator ? (
-                      <div className="flex items-center gap-2">
-                        <ToggleSwitch checked={device.isOn} onChange={async () => { const cmd = device.isOn ? 'turn_off' : 'turn_on'; try { await apiUpdateDevice(device.id, undefined, device.isOn ? 'online' : 'active'); await apiSendDeviceCommand(device.id, cmd, {}, loggedInUser?.id); } catch {} lockDeviceToggle(device.id); toggleDevice(device.id); }} disabled={false} size="sm" />
-                        <span className="text-[0.6875rem] font-semibold" style={{ color: device.isOn ? '#27AE60' : '#5C7A6A' }}>{device.isOn ? 'Bật' : 'Tắt'}</span>
-                      </div>
-                    ) : (
+                  {isActuator ? (
+                    <button
+                      onClick={async () => { const cmd = device.isOn ? 'turn_off' : 'turn_on'; try { await apiUpdateDevice(device.id, undefined, device.isOn ? 'online' : 'active'); await apiSendDeviceCommand(device.id, cmd, {}, loggedInUser?.id); } catch {} lockDeviceToggle(device.id); toggleDevice(device.id); addToast({ type: 'success', message: `${device.isOn ? 'Đã tắt' : 'Đã bật'} ${device.name}` }); }}
+                      className="w-full py-2 rounded-[8px] text-[0.8125rem] font-semibold transition-colors"
+                      style={{ backgroundColor: device.isOn ? '#1B4332' : '#E2E8E4', color: device.isOn ? '#fff' : '#1A2E1F' }}
+                    >
+                      {device.isOn ? '⏹ Tắt thiết bị' : '▶ Bật thiết bị'}
+                    </button>
+                  ) : (
+                    <div className="flex items-center justify-between">
                       <p className="text-[1.375rem] font-bold text-[#1A2E1F]" style={{ fontFamily: "'DM Mono', monospace" }}>
                         {device.lastValue != null ? device.lastValue : "--"}
                         {device.lastValue != null && device.lastUnit && <span className="text-[0.75rem] text-[#5C7A6A] ml-1">{device.lastUnit}</span>}
                       </p>
-                    )}
-                    <Badge variant={device.status === "online" || device.status === "active" ? "ok" : device.status === "error" ? "danger" : "default"}>
-                      {device.status}
-                    </Badge>
-                  </div>
+                      <Badge variant={device.status === "online" || device.status === "active" ? "ok" : device.status === "error" ? "danger" : "default"}>
+                        {device.status}
+                      </Badge>
+                    </div>
+                  )}
                   {device.type === "led_rgb" && (
                     <RGBController
                       enabled={(device.status === "online" || device.status === "active") && !!device.isOn}
