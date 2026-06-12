@@ -455,7 +455,7 @@ export default function ReportsPage() {
     { label: "Nhiệt độ", value: avgTemperature.toFixed(1), unit: "°C", icon: Thermometer, color: "#E67E22" },
     { label: "Độ ẩm không khí", value: avgHumidityAir.toFixed(1), unit: "%", icon: Droplet, color: "#2D9CDB" },
     { label: "Độ ẩm đất", value: avgSoilHumidity.toFixed(1), unit: "%", icon: Droplets, color: "#2980B9" },
-    { label: "Ánh sáng", value: (avgLight / 1000).toFixed(1), unit: "k lux", icon: SunMedium, color: "#F39C12" },
+    { label: "Ánh sáng", value: String(Math.max(0, Math.trunc(avgLight))), unit: "lux", icon: SunMedium, color: "#F39C12" },
     { label: "Giờ bơm ước tính", value: estimatedPumpHours.toFixed(1), unit: "h", icon: Clock3, color: "#1B4332" },
   ];
 
