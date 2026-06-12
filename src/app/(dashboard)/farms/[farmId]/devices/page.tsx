@@ -304,7 +304,10 @@ export default function FarmDevicesPage() {
                   </div>
                   <div className="flex items-center justify-between">
                     {isActuator ? (
-                      <ToggleSwitch checked={device.isOn} onChange={async () => { const cmd = device.isOn ? 'turn_off' : 'turn_on'; try { await apiUpdateDevice(device.id, undefined, device.isOn ? 'online' : 'active'); await apiSendDeviceCommand(device.id, cmd, {}, loggedInUser?.id); } catch {} lockDeviceToggle(device.id); toggleDevice(device.id); }} disabled={false} size="sm" />
+                      <div className="flex items-center gap-2">
+                        <ToggleSwitch checked={device.isOn} onChange={async () => { const cmd = device.isOn ? 'turn_off' : 'turn_on'; try { await apiUpdateDevice(device.id, undefined, device.isOn ? 'online' : 'active'); await apiSendDeviceCommand(device.id, cmd, {}, loggedInUser?.id); } catch {} lockDeviceToggle(device.id); toggleDevice(device.id); }} disabled={false} size="sm" />
+                        <span className="text-[0.6875rem] font-semibold" style={{ color: device.isOn ? '#27AE60' : '#5C7A6A' }}>{device.isOn ? 'Bật' : 'Tắt'}</span>
+                      </div>
                     ) : (
                       <p className="text-[1.375rem] font-bold text-[#1A2E1F]" style={{ fontFamily: "'DM Mono', monospace" }}>
                         {device.lastValue != null ? device.lastValue : "--"}
