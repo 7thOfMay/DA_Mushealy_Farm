@@ -43,35 +43,27 @@ Mushealy là nền tảng quản lý nông trại thông minh cho phép:
 ```
     ┌────────────────────────────────────────────────────────┐
     │                    IOT DEVICE LAYER                    │
-    │  [Yolo:Bit ESP32 Nodes]                                │
-    │  - Cảm biến đầu vào: DHT20, Độ ẩm đất, Ánh sáng        │
-    │  - Thiết bị đầu ra: Máy bơm nước, Đèn LED Grow Light   │
+    │                 [Yolo:Bit ESP32 Nodes]                 │
     └───────────────────────────┬────────────────────────────┘
                                 │ ▲
   Uplink: Publish Telemetry     │ │ Downlink: Real-time RPC
-  v1/devices/me/telemetry       │ │ v1/devices/me/rpc/request/+
   (MQTT JSON / Port 1883)       ▼ │ (MQTT Sub / JSON)
     ┌───────────────────────────┴────────────────────────────┐
     │                CLOUD INTERMEDIATE LAYER                │
-    │  [CoreIoT Cloud Broker & Gateway (app.coreiot.io)]     │
-    │  - Định tuyến hướng sự kiện (Event-Driven Routing)     │
-    │  - Rule Chain Filter & Webhook Transformer             │
+    │    [CoreIoT Cloud Broker & Gateway (app.coreiot.io)]   │
     └───────────────────────────┬────────────────────────────┘
                                 │ ▲
-                                │ │ Downlink Control Command
-     HTTP POST Webhook          │ │ HTTP POST (JSON Payload)
-     (Event-Driven Trigger)     │ │ /api/v1/devices/rpc
+     HTTP POST Webhook          │ │ Downlink Control Command
+     (Event-Driven Trigger)     │ │ HTTP POST (JSON Payload)
                                 ▼ │
     ┌───────────────────────────┴────────────────────────────┐
     │                     BACKEND LAYER                      │
-    │  [Next.js API Routes (Hạ tầng Serverless Vercel)]      │
-    │  - Tiếp nhận & phân tích cấu trúc Webhook dữ liệu      │
-    │  - Điều phối lệnh RPC dội ngược xuống phần cứng        │
+    │     [Next.js API Routes (Hạ tầng Serverless Vercel)]   │
     └───────────────────────────┬────────────────────────────┘
                                 │ ▲
-                                │ │ Query / Fetch Telemetry
-             SQL Ghi dữ liệu    │ │ RESTful API HTTP Requests
-             (Insert Direct)    ▼ │
+             SQL Ghi dữ liệu    │ │ Query / Fetch Telemetry
+             (Insert Direct)    │ │ RESTful API HTTP Requests
+                                ▼ │
     ┌───────────────────────────┴────────────────────────────┐
     │                  DATA & PRESENTATION                   │
     │  [Neon DB (PostgreSQL)]  ◄───►  [React Web Application]│
