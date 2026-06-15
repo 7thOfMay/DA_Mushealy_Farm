@@ -48,6 +48,7 @@ export async function POST(request: Request) {
       body.startTime ?? null, body.endTime ?? null,
       body.dayOfWeek ?? null, body.durationSeconds ?? null, body.createdBy ?? null,
     );
+    await ensureMissedIrrigationAlerts();
     return NextResponse.json({ ok: true, scheduleId: `s${scheduleId}` });
   } catch (err) {
     console.error("[API POST /schedules]", err);
@@ -77,6 +78,7 @@ export async function PUT(request: Request) {
       end_time: body.endTime, day_of_week: body.dayOfWeek,
       duration_seconds: body.durationSeconds, is_active: body.isActive,
     });
+    await ensureMissedIrrigationAlerts();
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[API PUT /schedules]", err);
