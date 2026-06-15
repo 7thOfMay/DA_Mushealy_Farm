@@ -47,6 +47,49 @@ type SensorRow = {
   recorded_at: Date | string;
 };
 
+type HistoryMetricAggregateRow = {
+  metric_type: string;
+  total_records: number;
+  first_recorded_at: Date | string | null;
+  last_recorded_at: Date | string | null;
+  min_value: number | null;
+  max_value: number | null;
+  avg_value: number | null;
+  last_24h_records: number;
+  last_24h_avg: number | null;
+  last_24h_min: number | null;
+  last_24h_max: number | null;
+  last_7d_records: number;
+  last_7d_avg: number | null;
+  last_7d_min: number | null;
+  last_7d_max: number | null;
+  last_30d_records: number;
+  last_30d_avg: number | null;
+  last_30d_min: number | null;
+  last_30d_max: number | null;
+};
+
+type HistorySampleRow = {
+  metric_type: string;
+  value: number;
+  recorded_at: Date | string;
+};
+
+type HistoryDailyRow = {
+  metric_type: string;
+  bucket_date: Date | string;
+  records: number;
+  avg_value: number | null;
+  min_value: number | null;
+  max_value: number | null;
+};
+
+type HistoryCoverageRow = {
+  first_recorded_at: Date | string | null;
+  last_recorded_at: Date | string | null;
+  total_records: number;
+};
+
 type ThresholdRow = {
   metric_type: string;
   min_value: number | null;
@@ -78,11 +121,27 @@ type AlertRow = {
   created_at: Date | string;
 };
 
+type AlertSummaryRow = {
+  total_alerts: number;
+  last_24h: number;
+  last_7d: number;
+  last_30d: number;
+  critical_count: number;
+  warning_count: number;
+  info_count: number;
+};
+
 type LogRow = {
   log_id: number;
   action_type: string;
   description: string;
   created_at: Date | string;
+};
+
+type LogSummaryRow = {
+  total_logs: number;
+  last_7d: number;
+  last_30d: number;
 };
 
 function sid(prefix: string, id: number) {
@@ -104,6 +163,14 @@ function diffMinutesFromNow(value: Date | string | null | undefined) {
   const timestamp = new Date(value).getTime();
   if (Number.isNaN(timestamp)) return null;
   return Math.max(0, Math.round((Date.now() - timestamp) / 60000));
+}
+
+function mapMetricKey(metricType: string) {
+  if (metricType === "temperature") return "temperature" as const;
+  if (metricType === "humidityAir") return "humidity_air" as const;
+  if (metricType === "humiditySoil") return "humidity_soil" as const;
+  if (metricType === "light") return "light" as const;
+  return null;
 }
 
 function mapDeviceType(deviceTypeId: number): DeviceType {
@@ -383,7 +450,21 @@ export async function fetchGardenDashboardContext(gardenId: string) {
 
   if (!garden) return null;
 
-  const [sensors, thresholds, devices, schedules, alerts, recentLogs] = await Promise.all([
+  const sensorHistorySourceSql = `
+    SELECT d.device_type_id, sd.value, sd.recorded_at
+    FROM sensor_data sd
+    JOIN devices d ON d.device_id = sd.device_id
+    JOIN device_types dt ON dt.device_type_id = d.device_type_id
+    WHERE d.zone_id = $1 AND dt.category = 'sensor'
+    UNION ALL
+    SELECT d.device_type_id, sda.value, sda.recorded_at
+    FROM sensor_data_archive sda
+    JOIN devices d ON d.device_id = sda.device_id
+    JOIN device_types dt ON dt.device_type_id = d.device_type_id
+    WHERE d.zone_id = $1 AND dt.category = 'sensor'
+  `;
+
+  const [sensors, thresholds, devices, schedules, alerts, recentLogs, historyCoverage, historyMetrics, historySamples, historyDaily, alertSummary, logSummary] = await Promise.all([
     query<SensorRow>(`
       SELECT metric_type, value, recorded_at
       FROM (
@@ -451,6 +532,116 @@ export async function fetchGardenDashboardContext(gardenId: string) {
       ORDER BY sl.created_at DESC
       LIMIT 6
     `, [zoneNum]),
+    queryOne<HistoryCoverageRow>(`
+      WITH zone_sensor_data AS (
+        ${sensorHistorySourceSql}
+      )
+      SELECT
+        MIN(recorded_at) AS first_recorded_at,
+        MAX(recorded_at) AS last_recorded_at,
+        COUNT(*)::int AS total_records
+      FROM zone_sensor_data
+    `, [zoneNum]),
+    query<HistoryMetricAggregateRow>(`
+      WITH zone_sensor_data AS (
+        ${sensorHistorySourceSql}
+      )
+      SELECT
+        CASE device_type_id
+          WHEN 1 THEN 'temperature'
+          WHEN 2 THEN 'humidityAir'
+          WHEN 3 THEN 'humiditySoil'
+          WHEN 4 THEN 'light'
+        END AS metric_type,
+        COUNT(*)::int AS total_records,
+        MIN(recorded_at) AS first_recorded_at,
+        MAX(recorded_at) AS last_recorded_at,
+        MIN(value) AS min_value,
+        MAX(value) AS max_value,
+        AVG(value) AS avg_value,
+        COUNT(*) FILTER (WHERE recorded_at >= NOW() - INTERVAL '24 hours')::int AS last_24h_records,
+        AVG(value) FILTER (WHERE recorded_at >= NOW() - INTERVAL '24 hours') AS last_24h_avg,
+        MIN(value) FILTER (WHERE recorded_at >= NOW() - INTERVAL '24 hours') AS last_24h_min,
+        MAX(value) FILTER (WHERE recorded_at >= NOW() - INTERVAL '24 hours') AS last_24h_max,
+        COUNT(*) FILTER (WHERE recorded_at >= NOW() - INTERVAL '7 days')::int AS last_7d_records,
+        AVG(value) FILTER (WHERE recorded_at >= NOW() - INTERVAL '7 days') AS last_7d_avg,
+        MIN(value) FILTER (WHERE recorded_at >= NOW() - INTERVAL '7 days') AS last_7d_min,
+        MAX(value) FILTER (WHERE recorded_at >= NOW() - INTERVAL '7 days') AS last_7d_max,
+        COUNT(*) FILTER (WHERE recorded_at >= NOW() - INTERVAL '30 days')::int AS last_30d_records,
+        AVG(value) FILTER (WHERE recorded_at >= NOW() - INTERVAL '30 days') AS last_30d_avg,
+        MIN(value) FILTER (WHERE recorded_at >= NOW() - INTERVAL '30 days') AS last_30d_min,
+        MAX(value) FILTER (WHERE recorded_at >= NOW() - INTERVAL '30 days') AS last_30d_max
+      FROM zone_sensor_data
+      GROUP BY device_type_id
+    `, [zoneNum]),
+    query<HistorySampleRow>(`
+      WITH zone_sensor_data AS (
+        ${sensorHistorySourceSql}
+      ),
+      ranked AS (
+        SELECT
+          CASE device_type_id
+            WHEN 1 THEN 'temperature'
+            WHEN 2 THEN 'humidityAir'
+            WHEN 3 THEN 'humiditySoil'
+            WHEN 4 THEN 'light'
+          END AS metric_type,
+          value,
+          recorded_at,
+          ROW_NUMBER() OVER (PARTITION BY device_type_id ORDER BY recorded_at DESC) AS rn
+        FROM zone_sensor_data
+      )
+      SELECT metric_type, value, recorded_at
+      FROM ranked
+      WHERE rn <= 8
+      ORDER BY metric_type, recorded_at DESC
+    `, [zoneNum]),
+    query<HistoryDailyRow>(`
+      WITH zone_sensor_data AS (
+        ${sensorHistorySourceSql}
+      )
+      SELECT
+        CASE device_type_id
+          WHEN 1 THEN 'temperature'
+          WHEN 2 THEN 'humidityAir'
+          WHEN 3 THEN 'humiditySoil'
+          WHEN 4 THEN 'light'
+        END AS metric_type,
+        DATE_TRUNC('day', recorded_at) AS bucket_date,
+        COUNT(*)::int AS records,
+        AVG(value) AS avg_value,
+        MIN(value) AS min_value,
+        MAX(value) AS max_value
+      FROM zone_sensor_data
+      WHERE recorded_at >= NOW() - INTERVAL '14 days'
+      GROUP BY device_type_id, DATE_TRUNC('day', recorded_at)
+      ORDER BY bucket_date DESC
+    `, [zoneNum]),
+    queryOne<AlertSummaryRow>(`
+      SELECT
+        COUNT(*)::int AS total_alerts,
+        COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours')::int AS last_24h,
+        COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')::int AS last_7d,
+        COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days')::int AS last_30d,
+        COUNT(*) FILTER (WHERE severity = 'critical')::int AS critical_count,
+        COUNT(*) FILTER (WHERE severity = 'warning')::int AS warning_count,
+        COUNT(*) FILTER (WHERE severity = 'info')::int AS info_count
+      FROM alerts
+      WHERE zone_id = $1
+    `, [zoneNum]),
+    queryOne<LogSummaryRow>(`
+      SELECT
+        COUNT(*)::int AS total_logs,
+        COUNT(*) FILTER (WHERE sl.created_at >= NOW() - INTERVAL '7 days')::int AS last_7d,
+        COUNT(*) FILTER (WHERE sl.created_at >= NOW() - INTERVAL '30 days')::int AS last_30d
+      FROM system_logs sl
+      LEFT JOIN devices d ON sl.entity_type = 'devices' AND sl.entity_id = d.device_id
+      LEFT JOIN farm_zones z1 ON z1.zone_id = d.zone_id
+      LEFT JOIN farm_zones z2 ON sl.entity_type = 'gardens' AND sl.entity_id = z2.zone_id
+      LEFT JOIN schedules s ON sl.entity_type = 'schedules' AND sl.entity_id = s.schedule_id
+      LEFT JOIN farm_zones z3 ON z3.zone_id = s.zone_id
+      WHERE COALESCE(z1.zone_id, z2.zone_id, z3.zone_id) = $1
+    `, [zoneNum]),
   ]);
 
   const latestSensors: AIDashboardContext["latestSensors"] = {};
@@ -477,6 +668,77 @@ export async function fetchGardenDashboardContext(gardenId: string) {
     if (row.metric_type === "humidityAir") thresholdMap.humidityAir = next;
     if (row.metric_type === "humiditySoil") thresholdMap.humiditySoil = next;
     if (row.metric_type === "light") thresholdMap.light = next;
+  }
+
+  const historyMetricsMap: NonNullable<AIDashboardContext["history"]>["metrics"] = {};
+
+  for (const row of historyMetrics) {
+    const metricKey = mapMetricKey(row.metric_type);
+    if (!metricKey) continue;
+
+    historyMetricsMap[metricKey] = {
+      totalRecords: Number(row.total_records ?? 0),
+      firstRecordedAt: row.first_recorded_at ? toIso(row.first_recorded_at) : null,
+      lastRecordedAt: row.last_recorded_at ? toIso(row.last_recorded_at) : null,
+      min: row.min_value === null ? null : Number(row.min_value),
+      max: row.max_value === null ? null : Number(row.max_value),
+      avg: row.avg_value === null ? null : Number(row.avg_value),
+      windows: {
+        last24h: row.last_24h_records > 0 ? {
+          records: Number(row.last_24h_records),
+          avg: row.last_24h_avg === null ? null : Number(row.last_24h_avg),
+          min: row.last_24h_min === null ? null : Number(row.last_24h_min),
+          max: row.last_24h_max === null ? null : Number(row.last_24h_max),
+        } : null,
+        last7d: row.last_7d_records > 0 ? {
+          records: Number(row.last_7d_records),
+          avg: row.last_7d_avg === null ? null : Number(row.last_7d_avg),
+          min: row.last_7d_min === null ? null : Number(row.last_7d_min),
+          max: row.last_7d_max === null ? null : Number(row.last_7d_max),
+        } : null,
+        last30d: row.last_30d_records > 0 ? {
+          records: Number(row.last_30d_records),
+          avg: row.last_30d_avg === null ? null : Number(row.last_30d_avg),
+          min: row.last_30d_min === null ? null : Number(row.last_30d_min),
+          max: row.last_30d_max === null ? null : Number(row.last_30d_max),
+        } : null,
+      },
+      recentSamples: [],
+      dailyRollups: [],
+    };
+  }
+
+  for (const row of historySamples) {
+    const metricKey = mapMetricKey(row.metric_type);
+    if (!metricKey) continue;
+    historyMetricsMap[metricKey] ??= {
+      totalRecords: 0,
+      windows: {},
+      recentSamples: [],
+      dailyRollups: [],
+    };
+    historyMetricsMap[metricKey]!.recentSamples.push({
+      value: Number(row.value),
+      recordedAt: toIso(row.recorded_at),
+    });
+  }
+
+  for (const row of historyDaily) {
+    const metricKey = mapMetricKey(row.metric_type);
+    if (!metricKey) continue;
+    historyMetricsMap[metricKey] ??= {
+      totalRecords: 0,
+      windows: {},
+      recentSamples: [],
+      dailyRollups: [],
+    };
+    historyMetricsMap[metricKey]!.dailyRollups.push({
+      date: toIso(row.bucket_date).slice(0, 10),
+      records: Number(row.records ?? 0),
+      avg: row.avg_value === null ? null : Number(row.avg_value),
+      min: row.min_value === null ? null : Number(row.min_value),
+      max: row.max_value === null ? null : Number(row.max_value),
+    });
   }
 
   return {
@@ -518,6 +780,31 @@ export async function fetchGardenDashboardContext(gardenId: string) {
       description: row.description,
       createdAt: toIso(row.created_at),
     })),
+    history: {
+      coverage: {
+        firstRecordedAt: historyCoverage?.first_recorded_at ? toIso(historyCoverage.first_recorded_at) : null,
+        lastRecordedAt: historyCoverage?.last_recorded_at ? toIso(historyCoverage.last_recorded_at) : null,
+        totalRecords: Number(historyCoverage?.total_records ?? 0),
+        includesArchive: true,
+      },
+      metrics: historyMetricsMap,
+      alerts: {
+        total: Number(alertSummary?.total_alerts ?? 0),
+        last24h: Number(alertSummary?.last_24h ?? 0),
+        last7d: Number(alertSummary?.last_7d ?? 0),
+        last30d: Number(alertSummary?.last_30d ?? 0),
+        bySeverity: {
+          high: Number(alertSummary?.critical_count ?? 0),
+          medium: Number(alertSummary?.warning_count ?? 0),
+          low: Number(alertSummary?.info_count ?? 0),
+        },
+      },
+      logs: {
+        total: Number(logSummary?.total_logs ?? 0),
+        last7d: Number(logSummary?.last_7d ?? 0),
+        last30d: Number(logSummary?.last_30d ?? 0),
+      },
+    },
   } satisfies AIDashboardContext;
 }
 

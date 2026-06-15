@@ -362,6 +362,54 @@ export interface AIDashboardContext {
     description: string;
     createdAt: string;
   }>;
+  history?: {
+    coverage: {
+      firstRecordedAt?: string | null;
+      lastRecordedAt?: string | null;
+      totalRecords: number;
+      includesArchive: boolean;
+    };
+    metrics: Partial<Record<SensorType, {
+      totalRecords: number;
+      firstRecordedAt?: string | null;
+      lastRecordedAt?: string | null;
+      min?: number | null;
+      max?: number | null;
+      avg?: number | null;
+      windows: {
+        last24h?: { records: number; avg?: number | null; min?: number | null; max?: number | null } | null;
+        last7d?: { records: number; avg?: number | null; min?: number | null; max?: number | null } | null;
+        last30d?: { records: number; avg?: number | null; min?: number | null; max?: number | null } | null;
+      };
+      recentSamples: Array<{
+        value: number;
+        recordedAt: string;
+      }>;
+      dailyRollups: Array<{
+        date: string;
+        records: number;
+        avg?: number | null;
+        min?: number | null;
+        max?: number | null;
+      }>;
+    }>>;
+    alerts: {
+      total: number;
+      last24h: number;
+      last7d: number;
+      last30d: number;
+      bySeverity: {
+        high: number;
+        medium: number;
+        low: number;
+      };
+    };
+    logs: {
+      total: number;
+      last7d: number;
+      last30d: number;
+    };
+  };
 }
 
 export interface AIChatSessionDetail extends AIChatSessionSummary {
