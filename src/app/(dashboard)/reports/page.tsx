@@ -17,7 +17,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { AlertTriangle, Clock3, Droplet, Droplets, Leaf, SunMedium, Thermometer } from "lucide-react";
+import { AlertTriangle, Clock3, Droplet, Droplets, FileDown, Leaf, Printer, SunMedium, Thermometer } from "lucide-react";
 import { Topbar } from "@/frontend/components/layout/Topbar";
 import { ChartAssistant } from "@/frontend/components/shared/ChartAssistant";
 import { ErrorState } from "@/frontend/components/shared/ErrorStates";
@@ -466,6 +466,22 @@ export default function ReportsPage() {
     { name: "Thiết bị", value: selectedAlerts.filter((alert) => !alert.sensorType).length, color: "#5C7A6A" },
   ].filter((entry) => entry.value > 0);
 
+  const handlePrintDashboard = () => {
+    const previousTitle = document.title;
+    const printTitle = [
+      "Mushealy Dashboard",
+      selectedFarm.name,
+      selectedGarden?.name ?? "garden",
+      rangeMode === "custom" ? "custom-range" : range,
+    ].join(" - ");
+
+    document.title = printTitle;
+    window.setTimeout(() => {
+      window.print();
+      document.title = previousTitle;
+    }, 120);
+  };
+
   if (!selectedFarm) {
     return (
       <div>
@@ -486,7 +502,7 @@ export default function ReportsPage() {
 
       <div className="space-y-6 p-8">
         {loggedInUser?.role === "ADMIN" && managedFarmers.length > 0 && (
-          <div className="card max-w-[420px] p-4">
+          <div className="card max-w-[420px] p-4 print-hidden">
             <label className="mb-1.5 block text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A]">
               Nông dân đang xem dashboard
             </label>
@@ -541,7 +557,7 @@ export default function ReportsPage() {
         </div>
         )}
 
-        <div className="space-y-3" data-tour="reports-filters">
+        <div className="space-y-3 print-hidden" data-tour="reports-filters">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -570,6 +586,22 @@ export default function ReportsPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={handlePrintDashboard}
+                disabled={loading || !selectedGarden}
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-[8px] px-3 py-2 text-[0.8125rem] font-semibold transition-colors",
+                  loading || !selectedGarden
+                    ? "cursor-not-allowed border border-[#E2E8E4] bg-[#F2F4F2] text-[#9AA8A0]"
+                    : "border border-[#1B4332] bg-white text-[#1B4332] hover:bg-[#F0FAF3]",
+                )}
+              >
+                <Printer size={14} />
+                <FileDown size={14} />
+                Xuất PDF / In
+              </button>
+
               <select
                 className="rounded-[8px] border border-[#E2E8E4] bg-white px-3 py-2 text-[0.8125rem] text-[#1A2E1F]"
                 value={selectedGarden?.id ?? ""}
@@ -669,6 +701,17 @@ export default function ReportsPage() {
         )}
 
         {!loading && !error && selectedGarden && (
+          <div className="reports-print-area space-y-4">
+            <div className="print-only rounded-[12px] border border-[#D7E2DB] bg-white p-5">
+              <p className="text-[0.75rem] font-semibold uppercase tracking-[0.18em] text-[#5C7A6A]">Mushealy Farm Report</p>
+              <h2 className="mt-2 text-[1.35rem] font-semibold text-[#1A2E1F]">
+                {selectedFarm.name} · {selectedGarden.name}
+              </h2>
+              <p className="mt-2 text-[0.875rem] text-[#5C7A6A]">Khoảng dữ liệu: {effectiveRangeLabel}</p>
+              <p className="mt-1 text-[0.875rem] text-[#5C7A6A]">
+                Bucket: {formatResolutionLabel(bucketMs)} · Cây trồng: {selectedGarden.plantLabel}
+              </p>
+            </div>
           <>
             <div className="grid grid-cols-2 gap-4 xl:grid-cols-5 lg:grid-cols-3">
               {statCards.map((card) => {
@@ -1044,6 +1087,7 @@ export default function ReportsPage() {
               </div>
             </div>
           </>
+          </div>
         )}
       </div>
     </div>

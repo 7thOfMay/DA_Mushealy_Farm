@@ -100,3 +100,45 @@
     line-height: 1.2;
   }
 }
+
+.print-only {
+  display: none;
+}
+
+@media print {
+  body {
+    background: #ffffff !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .print-hidden {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .reports-print-area,
+  .reports-print-area * {
+    visibility: visible !important;
+  }
+
+  .reports-print-area {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    padding: 24px;
+    background: #ffffff;
+  }
+
+  .reports-print-area .card,
+  .reports-print-area .print-only {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    box-shadow: none !important;
+  }
+}
