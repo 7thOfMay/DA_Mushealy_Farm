@@ -31,8 +31,9 @@ Mushealy là nền tảng quản lý nông trại thông minh cho phép:
 | UI Components | Radix UI, Recharts, Framer Motion, Lucide Icons |
 | Backend API | Next.js API Routes |
 | Database | PostgreSQL 16 (Neon trên Vercel / Docker local) |
-| IoT Gateway | Python 3.11, paho-mqtt |
-| MQTT Broker | OhStem (`mqtt.ohstem.vn`) |
+| IoT Edge OS | C++ trên nền tảng Hệ điều hành thời gian thực FreeRTOS |
+| Cloud MQTT Broker | CoreIoT (`app.coreiot.io`) |
+| Cloud Routing Engine | CoreIoT Rule Chain (JavaScript Filters, REST API Call Webhooks)
 | Deployment | Vercel (web app) + Docker Compose (full stack) |
 
 ---
@@ -40,31 +41,51 @@ Mushealy là nền tảng quản lý nông trại thông minh cho phép:
 ## Kiến trúc hệ thống
 
 ```
-┌──────────────┐     MQTT      ┌──────────────────┐     SQL      ┌────────────┐
-│  IoT Devices │ ◄──────────►  │  Python Gateway   │ ◄──────────► │ PostgreSQL │
-│  (Yolo:Bit)  │               │  (paho-mqtt)      │              │            │
-└──────────────┘               └──────────────────┘              └─────┬──────┘
-                                                                       │
-                                                                       │ SQL
-                                                                       │
-                                                                 ┌─────▼──────┐
-                                                                 │  Next.js   │
-                                                                 │  API Routes│
-                                                                 └─────┬──────┘
-                                                                       │
-                                                                       │ REST
-                                                                       │
-                                                                 ┌─────▼──────┐
-                                                                 │  React UI  │
-                                                                 │  (Browser) │
-                                                                 └────────────┘
+    ┌────────────────────────────────────────────────────────┐
+    │                    IOT DEVICE LAYER                    │
+    │  [Yolo:Bit ESP32 Nodes]                                │
+    │  - Cảm biến đầu vào: DHT20, Độ ẩm đất, Ánh sáng        │
+    │  - Thiết bị đầu ra: Máy bơm nước, Đèn LED Grow Light   │
+    └───────────────────────────┬────────────────────────────┘
+                                │ ▲
+  Uplink: Publish Telemetry     │ │ Downlink: Real-time RPC
+  v1/devices/me/telemetry       │ │ v1/devices/me/rpc/request/+
+  (MQTT JSON / Port 1883)       ▼ │ (MQTT Sub / JSON)
+    ┌───────────────────────────┴────────────────────────────┐
+    │                CLOUD INTERMEDIATE LAYER                │
+    │  [CoreIoT Cloud Broker & Gateway (app.coreiot.io)]     │
+    │  - Định tuyến hướng sự kiện (Event-Driven Routing)     │
+    │  - Rule Chain Filter & Webhook Transformer             │
+    └───────────────────────────┬────────────────────────────┘
+                                │ ▲
+                                │ │ Downlink Control Command
+     HTTP POST Webhook          │ │ HTTP POST (JSON Payload)
+     (Event-Driven Trigger)     │ │ /api/v1/devices/rpc
+                                ▼ │
+    ┌───────────────────────────┴────────────────────────────┐
+    │                     BACKEND LAYER                      │
+    │  [Next.js API Routes (Hạ tầng Serverless Vercel)]      │
+    │  - Tiếp nhận & phân tích cấu trúc Webhook dữ liệu      │
+    │  - Điều phối lệnh RPC dội ngược xuống phần cứng        │
+    └───────────────────────────┬────────────────────────────┘
+                                │ ▲
+                                │ │ Query / Fetch Telemetry
+             SQL Ghi dữ liệu    │ │ RESTful API HTTP Requests
+             (Insert Direct)    ▼ │
+    ┌───────────────────────────┴────────────────────────────┐
+    │                  DATA & PRESENTATION                   │
+    │  [Neon DB (PostgreSQL)]  ◄───►  [React Web Application]│
+    │  (Cloud Database Server)         (Giao diện điều khiển)│
+    └────────────────────────────────────────────────────────┘
 ```
 
 **Luồng dữ liệu:**
-1. Cảm biến IoT gửi dữ liệu qua MQTT đến OhStem broker
-2. Python Gateway nhận dữ liệu, lưu vào PostgreSQL
-3. Next.js API đọc DB, trả dữ liệu cho frontend hiển thị
-4. Người dùng bật/tắt thiết bị trên UI → API ghi lệnh vào DB → Gateway poll lệnh → publish MQTT → thiết bị thực thi
+Hệ thống vận hành hoàn toàn dựa trên cơ chế hướng sự kiện (*Event-Driven*) thời gian thực, loại bỏ hoàn toàn các vòng lặp quét cơ sở dữ liệu tuần tự (Polling) trung gian để tối ưu hóa hiệu năng:
+
+1. **Thu thập và Đẩy dữ liệu (Uplink Telemetry):** Mạch Yolo:Bit (ESP32) định kỳ sau mỗi 10 giây thu thập thông số từ các cảm biến, đóng gói tập trung vào một chuỗi JSON duy nhất và Publish lên CoreIoT Broker qua topic `v1/devices/me/telemetry`.
+2. **Định tuyến và Chuyển tiếp (Cloud Gateway Webhook):** Bộ cấu hình Rule Chain trên CoreIoT tiếp nhận gói tin, bóc tách dữ liệu và kích hoạt tức thời khối `REST API Call` dưới dạng một Webhook HTTP POST bắn thẳng sang API Serverless backend (`/api/telemetry`) triển khai trên đám mây Vercel.
+3. **Ghi cơ sở dữ liệu & Phản hồi UI:** Next.js API Routes trên Vercel phân tích payload nhận được từ Webhook, thực thi câu lệnh SQL ghi trực tiếp bản ghi vào đám mây Neon DB (PostgreSQL). Giao diện người dùng Web (React) sẽ gọi API định kỳ để kéo thông số mới về hiển thị lên biểu đồ.
+4. **Điều khiển tức thời thời gian thực (Downlink RPC):** Khi người dùng bật/tắt thiết bị trên giao diện Web UI, ứng dụng phát yêu cầu HTTP POST đến Next.js API để ghi nhật ký, đồng thời API kích hoạt ngay một lệnh gọi RPC dội thẳng sang CoreIoT Broker. CoreIoT ngay lập tức đẩy lệnh MQTT xuống topic `v1/devices/me/rpc/request/+` của mạch mà không cần thông qua bất kỳ vòng lặp quét DB nào.
 
 ---
 
