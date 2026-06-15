@@ -14,7 +14,7 @@ Mushealy là nền tảng quản lý nông trại thông minh cho phép:
 - **Điều khiển thiết bị từ xa** — máy bơm, quạt, đèn, van nước qua MQTT
 - **Cảnh báo tự động** — thiết lập ngưỡng cảnh báo cho từng loại cảm biến
 - **Lịch tưới tiêu** — lên lịch tự động hoặc theo ngưỡng cảm biến
-- **AI chẩn đoán cây trồng** — upload ảnh phát hiện bệnh & phân loại trái cây
+<!-- - **AI chẩn đoán cây trồng** — upload ảnh phát hiện bệnh & phân loại trái cây -->
 - **Quản lý đa nông trại** — phân cấp Nông trại → Khu vực → Thiết bị
 - **Phân quyền** — ADMIN (quản lý toàn hệ thống) / FARMER (quản lý nông trại được gán)
 - **Sao lưu & phục hồi dữ liệu**
@@ -65,7 +65,7 @@ Mushealy là nền tảng quản lý nông trại thông minh cho phép:
              (Insert Direct)    │ │ RESTful API HTTP Requests
                                 ▼ │
     ┌───────────────────────────┴────────────────────────────┐
-    │                  DATA & PRESENTATION                   │
+    │                 DATA & FRONTEND LAYER                  │
     │  [Neon DB (PostgreSQL)]  ◄───►  [React Web Application]│
     │  (Cloud Database Server)         (Giao diện điều khiển)│
     └────────────────────────────────────────────────────────┘
@@ -193,18 +193,6 @@ Lệnh trên sẽ khởi chạy 3 service: PostgreSQL, Next.js app, và MQTT Gat
 | admin01 | admin@smartfarm.local | 123456 | Quản trị hệ thống |
 | farmer01 | farmer1@smartfarm.local | 123456 | Nông hộ 1 |
 | user01 | user1@smartfarm.local | 123456 | Người dùng 1 |
-
----
-
-## IoT — MQTT Feeds
-
-| Feed | Hướng | Thiết bị | Mô tả |
-|---|---|---|---|
-| `V1` | Sensor → DB | Nhiệt kế | Nhiệt độ không khí (°C) |
-| `V2` | Sensor → DB | Cảm biến độ ẩm | Độ ẩm không khí (%) |
-| `V3` | Sensor → DB | Cảm biến đất | Độ ẩm đất (%) |
-| `V4` | Sensor → DB | Cảm biến ánh sáng | Cường độ sáng (lux) |
-| `V10` | DB → Actuator | Máy bơm | Bật/tắt (1/0) |
 
 ---
 
