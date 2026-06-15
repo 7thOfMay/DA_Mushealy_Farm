@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle, Clock, ChevronRight, User } from "lucide-react";
+import { AlertTriangle, CheckCircle, ChevronRight, Clock, User } from "lucide-react";
 import { Topbar } from "@/frontend/components/layout/Topbar";
-import { useAppStore } from "@/frontend/context/store";
-import { Badge, EmptyState } from "@/frontend/components/shared/index";
+import { Badge, EmptyState } from "@/frontend/components/shared";
 import { ErrorState } from "@/frontend/components/shared/ErrorStates";
+import { useAppStore } from "@/frontend/context/store";
+import { apiUpdateAlert } from "@/frontend/services/client";
 import { getVisibleFarmsForViewer } from "@/frontend/utils/dataScope";
 import { cn, formatDateTime, timeAgo } from "@/frontend/utils/utils";
 import type { AlertStatus } from "@/types";
@@ -44,35 +45,38 @@ export default function AlertsPage() {
   const [gardenFilter, setGardenFilter] = useState<string>("all");
   const [severityFilter, setSeverityFilter] = useState<"all" | "high" | "medium" | "low">("all");
   const [dateRange, setDateRange] = useState<DateRangeType>("all");
+  const [busyAlertId, setBusyAlertId] = useState<string | null>(null);
 
   const visibleFarms = useMemo(
     () => getVisibleFarmsForViewer({ farms, users, loggedInUser, selectedFarmerId }),
-    [farms, users, loggedInUser, selectedFarmerId]
+    [farms, users, loggedInUser, selectedFarmerId],
   );
+
   const visibleFarmIds = useMemo(() => new Set(visibleFarms.map((farm) => farm.id)), [visibleFarms]);
   const scopedGardens = useMemo(
     () => gardens.filter((garden) => garden.farmId && visibleFarmIds.has(garden.farmId)),
-    [gardens, visibleFarmIds]
+    [gardens, visibleFarmIds],
   );
 
   const now = Date.now();
   const farmByGardenId = useMemo(
     () => new Map(scopedGardens.map((garden) => [garden.id, garden.farmId ?? null])),
-    [scopedGardens]
+    [scopedGardens],
   );
 
   const scopedAlerts = useMemo(
-    () => alerts.filter((alert) => {
-      const resolvedFarmId = alert.farmId ?? farmByGardenId.get(alert.gardenId) ?? null;
-      return Boolean(resolvedFarmId && visibleFarmIds.has(resolvedFarmId));
-    }),
-    [alerts, farmByGardenId, visibleFarmIds]
+    () =>
+      alerts.filter((alert) => {
+        const resolvedFarmId = alert.farmId ?? farmByGardenId.get(alert.gardenId) ?? null;
+        return Boolean(resolvedFarmId && visibleFarmIds.has(resolvedFarmId));
+      }),
+    [alerts, farmByGardenId, visibleFarmIds],
   );
 
   const tabCounts = {
     all: scopedAlerts.length,
-    unhandled: scopedAlerts.filter((a) => a.status !== "RESOLVED").length,
-    resolved: scopedAlerts.filter((a) => a.status === "RESOLVED").length,
+    unhandled: scopedAlerts.filter((alert) => alert.status !== "RESOLVED").length,
+    resolved: scopedAlerts.filter((alert) => alert.status === "RESOLVED").length,
   };
 
   const farmScopedGardens = scopedGardens.filter((garden) => {
@@ -111,7 +115,7 @@ export default function AlertsPage() {
     return (
       <div>
         <Topbar title="Cảnh báo" subtitle="Chưa có nông dân hoặc nông trại trong phạm vi quản lý" />
-        <div className="p-8 max-w-3xl">
+        <div className="max-w-3xl p-8">
           <ErrorState
             title="Không có dữ liệu cảnh báo trong ngữ cảnh hiện tại"
             description="Hãy chọn nông dân ở sidebar hoặc tạo nông trại để bắt đầu theo dõi cảnh báo."
@@ -121,14 +125,36 @@ export default function AlertsPage() {
     );
   }
 
-  const handleProcess = (alertId: string) => {
-    processAlert(alertId, "Nguyễn Văn An");
-    addToast({ type: "warning", message: "Đang xử lý cảnh báo..." });
+  const actorName = loggedInUser?.name ?? "Hệ thống";
+
+  const handleProcess = async (alertId: string) => {
+    if (!loggedInUser) return;
+    setBusyAlertId(alertId);
+    const ok = await apiUpdateAlert(alertId, "processing", loggedInUser.id);
+    if (!ok) {
+      addToast({ type: "error", message: "Không lưu được trạng thái xử lý cảnh báo." });
+      setBusyAlertId(null);
+      return;
+    }
+
+    processAlert(alertId, actorName);
+    addToast({ type: "warning", message: "Đã chuyển cảnh báo sang đang xử lý." });
+    setBusyAlertId(null);
   };
 
-  const handleResolve = (alertId: string) => {
-    resolveAlert(alertId, "Nguyễn Văn An");
-    addToast({ type: "success", message: "Đã đóng cảnh báo thành công!" });
+  const handleResolve = async (alertId: string) => {
+    if (!loggedInUser) return;
+    setBusyAlertId(alertId);
+    const ok = await apiUpdateAlert(alertId, "resolved", loggedInUser.id);
+    if (!ok) {
+      addToast({ type: "error", message: "Không đóng được cảnh báo trên database." });
+      setBusyAlertId(null);
+      return;
+    }
+
+    resolveAlert(alertId, actorName);
+    addToast({ type: "success", message: "Đã đóng cảnh báo thành công." });
+    setBusyAlertId(null);
   };
 
   return (
@@ -137,25 +163,32 @@ export default function AlertsPage() {
         title="Cảnh báo"
         subtitle={`${tabCounts.unhandled} chưa xử lý · ${tabCounts.resolved} đã giải quyết`}
       />
+
       <div className="p-8">
-        {/* 3-tab filter */}
-        <div className="flex gap-1 mb-6 border-b border-[#E2E8E4]">
+        <div className="mb-6 flex gap-1 border-b border-[#E2E8E4]">
           {(["all", "unhandled", "resolved"] as TabType[]).map((tab) => {
-            const labels = { all: "Tất cả", unhandled: "Chưa xử lý", resolved: "Đã giải quyết" };
+            const labels = {
+              all: "Tất cả",
+              unhandled: "Chưa xử lý",
+              resolved: "Đã giải quyết",
+            };
+
             return (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={cn(
-                  "flex items-center gap-2 px-4 py-2.5 text-[0.875rem] font-medium border-b-2 transition-colors -mb-px",
-                  activeTab === tab ? "border-[#1B4332] text-[#1B4332]" : "border-transparent text-[#5C7A6A] hover:text-[#1A2E1F]"
+                  "mb-px flex items-center gap-2 border-b-2 px-4 py-2.5 text-[0.875rem] font-medium transition-colors",
+                  activeTab === tab ? "border-[#1B4332] text-[#1B4332]" : "border-transparent text-[#5C7A6A] hover:text-[#1A2E1F]",
                 )}
               >
                 {labels[tab]}
-                <span className={cn(
-                  "text-[0.625rem] font-bold px-1.5 py-0.5 rounded-full",
-                  activeTab === tab ? "bg-[#1B4332] text-white" : "bg-[#E2E8E4] text-[#5C7A6A]"
-                )}>
+                <span
+                  className={cn(
+                    "rounded-full px-1.5 py-0.5 text-[0.625rem] font-bold",
+                    activeTab === tab ? "bg-[#1B4332] text-white" : "bg-[#E2E8E4] text-[#5C7A6A]",
+                  )}
+                >
                   {tabCounts[tab]}
                 </span>
               </button>
@@ -163,9 +196,9 @@ export default function AlertsPage() {
           })}
         </div>
 
-        <div className="card p-4 mb-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+        <div className="card mb-5 grid grid-cols-1 gap-3 p-4 md:grid-cols-2 xl:grid-cols-4">
           <div>
-            <label className="block text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A] mb-1.5">Nông trại</label>
+            <label className="mb-1.5 block text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A]">Nông trại</label>
             <select
               className="input-field"
               value={farmFilter}
@@ -176,21 +209,27 @@ export default function AlertsPage() {
             >
               <option value="all">Tất cả nông trại</option>
               {visibleFarms.map((farm) => (
-                <option key={farm.id} value={farm.id}>{farm.name}</option>
+                <option key={farm.id} value={farm.id}>
+                  {farm.name}
+                </option>
               ))}
             </select>
           </div>
+
           <div>
-            <label className="block text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A] mb-1.5">Khu vườn</label>
+            <label className="mb-1.5 block text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A]">Khu vườn</label>
             <select className="input-field" value={gardenFilter} onChange={(event) => setGardenFilter(event.target.value)}>
               <option value="all">Tất cả khu vườn</option>
               {farmScopedGardens.map((garden) => (
-                <option key={garden.id} value={garden.id}>{garden.name}</option>
+                <option key={garden.id} value={garden.id}>
+                  {garden.name}
+                </option>
               ))}
             </select>
           </div>
+
           <div>
-            <label className="block text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A] mb-1.5">Mức độ</label>
+            <label className="mb-1.5 block text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A]">Mức độ</label>
             <select className="input-field" value={severityFilter} onChange={(event) => setSeverityFilter(event.target.value as typeof severityFilter)}>
               <option value="all">Tất cả mức</option>
               <option value="high">Cao</option>
@@ -198,8 +237,9 @@ export default function AlertsPage() {
               <option value="low">Thấp</option>
             </select>
           </div>
+
           <div>
-            <label className="block text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A] mb-1.5">Thời gian</label>
+            <label className="mb-1.5 block text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A]">Thời gian</label>
             <select className="input-field" value={dateRange} onChange={(event) => setDateRange(event.target.value as DateRangeType)}>
               <option value="all">Toàn bộ</option>
               <option value="24h">24 giờ qua</option>
@@ -216,7 +256,6 @@ export default function AlertsPage() {
           </div>
         )}
 
-        {/* Alert list */}
         {filtered.length === 0 ? (
           <EmptyState
             icon={CheckCircle}
@@ -229,67 +268,61 @@ export default function AlertsPage() {
               const sev = severityConfig[alert.severity];
               const stat = statusConfig[alert.status];
               const isExpanded = expandedId === alert.id;
+              const isBusy = busyAlertId === alert.id;
 
               return (
                 <div key={alert.id} className="card overflow-hidden">
-                  {/* Main row */}
                   <div
-                    className="flex items-start gap-4 p-4 cursor-pointer hover:bg-[#F7F8F6] transition-colors"
+                    className="flex cursor-pointer items-start gap-4 p-4 transition-colors hover:bg-[#F7F8F6]"
                     onClick={() => setExpandedId(isExpanded ? null : alert.id)}
                   >
                     <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+                      className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full"
                       style={{ backgroundColor: sev.bg }}
                     >
                       <AlertTriangle size={15} style={{ color: sev.color }} />
                     </div>
 
-                    <div className="flex-1 min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="text-[0.9375rem] font-medium text-[#1A2E1F]">{alert.message}</p>
-                          <p className="text-[0.8125rem] text-[#5C7A6A] mt-0.5">
-                            {alert.gardenName} {alert.deviceName ? `· ${alert.deviceName}` : ""}
+                          <p className="mt-0.5 text-[0.8125rem] text-[#5C7A6A]">
+                            {alert.gardenName}
+                            {alert.deviceName ? ` · ${alert.deviceName}` : ""}
                           </p>
                         </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
+
+                        <div className="flex flex-shrink-0 items-center gap-2">
                           <Badge variant={stat.variant}>{stat.label}</Badge>
-                          <ChevronRight
-                            size={16}
-                            className={cn("text-[#5C7A6A] transition-transform", isExpanded && "rotate-90")}
-                          />
+                          <ChevronRight size={16} className={cn("text-[#5C7A6A] transition-transform", isExpanded && "rotate-90")} />
                         </div>
                       </div>
 
-                      {alert.value && (
-                        <div className="flex items-center gap-3 mt-2">
-                          <span className="text-[0.75rem] font-semibold" style={{ fontFamily: "'DM Mono', monospace", color: sev.color }}>
+                      {typeof alert.value === "number" && (
+                        <div className="mt-2 flex items-center gap-3">
+                          <span className="text-[0.75rem] font-semibold" style={{ color: sev.color, fontFamily: "'DM Mono', monospace" }}>
                             {alert.value} {alert.sensorType === "temperature" ? "°C" : "%"}
                           </span>
                           <span className="text-[0.75rem] text-[#5C7A6A]">Ngưỡng: {alert.threshold}</span>
                         </div>
                       )}
 
-                      <div className="flex items-center gap-3 mt-2">
-                        <span className="text-[0.6875rem] text-[#5C7A6A] flex items-center gap-1">
+                      <div className="mt-2 flex items-center gap-3">
+                        <span className="flex items-center gap-1 text-[0.6875rem] text-[#5C7A6A]">
                           <Clock size={10} /> {timeAgo(alert.detectedAt)}
                         </span>
-                        {alert.farmName && (
-                          <span className="text-[0.6875rem] text-[#5C7A6A]">{alert.farmName}</span>
-                        )}
-                        <Badge variant={alert.severity === "high" ? "danger" : alert.severity === "medium" ? "warn" : "ok"}>
-                          Mức {sev.label}
-                        </Badge>
+                        {alert.farmName ? <span className="text-[0.6875rem] text-[#5C7A6A]">{alert.farmName}</span> : null}
+                        <Badge variant={alert.severity === "high" ? "danger" : alert.severity === "medium" ? "warn" : "ok"}>Mức {sev.label}</Badge>
                       </div>
                     </div>
                   </div>
 
-                  {/* Expanded detail */}
                   {isExpanded && (
-                    <div className="border-t border-[#E2E8E4] px-4 py-4 bg-[#F7F8F6]">
-                      {/* Timeline workflow */}
-                      <h4 className="text-[0.6875rem] uppercase tracking-wide text-[#5C7A6A] font-semibold mb-3">Tiến trình xử lý</h4>
-                      <div className="flex items-start gap-0 mb-4">
+                    <div className="border-t border-[#E2E8E4] bg-[#F7F8F6] px-4 py-4">
+                      <h4 className="mb-3 text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A]">Tiến trình xử lý</h4>
+
+                      <div className="mb-4 flex items-start gap-0">
                         {(["DETECTED", "PROCESSING", "RESOLVED"] as AlertStatus[]).map((step, idx) => {
                           const stepStat = statusConfig[step];
                           const isActive = stat.step >= idx;
@@ -299,31 +332,29 @@ export default function AlertsPage() {
                             PROCESSING: alert.processingAt,
                             RESOLVED: alert.resolvedAt,
                           };
+
                           return (
-                            <div key={step} className="flex-1 flex items-start gap-0">
+                            <div key={step} className="flex flex-1 items-start gap-0">
                               <div className="flex flex-col items-center">
-                                <div className={cn(
-                                  "w-6 h-6 rounded-full flex items-center justify-center text-[0.625rem] font-bold border-2",
-                                  isActive ? "border-[#1B4332] bg-[#1B4332] text-white" : "border-[#E2E8E4] bg-white text-[#5C7A6A]"
-                                )}>
+                                <div
+                                  className={cn(
+                                    "flex h-6 w-6 items-center justify-center rounded-full border-2 text-[0.625rem] font-bold",
+                                    isActive ? "border-[#1B4332] bg-[#1B4332] text-white" : "border-[#E2E8E4] bg-white text-[#5C7A6A]",
+                                  )}
+                                >
                                   {idx + 1}
                                 </div>
-                                {idx < 2 && (
-                                  <div className={cn("h-px w-full mt-3", isActive && stat.step > idx ? "bg-[#1B4332]" : "bg-[#E2E8E4]")} />
-                                )}
+                                {idx < 2 ? <div className={cn("mt-3 h-px w-full", isActive && stat.step > idx ? "bg-[#1B4332]" : "bg-[#E2E8E4]")} /> : null}
                               </div>
+
                               <div className="ml-2 flex-1">
-                                <p className={cn("text-[0.75rem] font-semibold", isActive ? "text-[#1A2E1F]" : "text-[#5C7A6A]")}>
-                                  {stepStat.label}
-                                </p>
-                                {timestamps[step] && (
-                                  <p className="text-[0.6875rem] text-[#5C7A6A]">{formatDateTime(timestamps[step]!)}</p>
-                                )}
-                                {isCurrent && alert.processedBy && step !== "DETECTED" && (
-                                  <p className="text-[0.6875rem] text-[#5C7A6A] flex items-center gap-1">
+                                <p className={cn("text-[0.75rem] font-semibold", isActive ? "text-[#1A2E1F]" : "text-[#5C7A6A]")}>{stepStat.label}</p>
+                                {timestamps[step] ? <p className="text-[0.6875rem] text-[#5C7A6A]">{formatDateTime(timestamps[step]!)}</p> : null}
+                                {isCurrent && alert.processedBy && step !== "DETECTED" ? (
+                                  <p className="flex items-center gap-1 text-[0.6875rem] text-[#5C7A6A]">
                                     <User size={10} /> {alert.processedBy}
                                   </p>
-                                )}
+                                ) : null}
                               </div>
                             </div>
                           );
@@ -332,31 +363,36 @@ export default function AlertsPage() {
 
                       {(alert.snapshot || alert.autoActionMessage) && (
                         <div className="mb-4 rounded-[10px] border border-[#E2E8E4] bg-white p-3">
-                          <p className="text-[0.6875rem] uppercase tracking-wide text-[#5C7A6A] font-semibold mb-2">Ngữ cảnh cảnh báo</p>
-                          {alert.snapshot && (
-                            <div className="flex gap-2 flex-wrap">
+                          <p className="mb-2 text-[0.6875rem] font-semibold uppercase tracking-wide text-[#5C7A6A]">Ngữ cảnh cảnh báo</p>
+                          {alert.snapshot ? (
+                            <div className="flex flex-wrap gap-2">
                               {Object.entries(alert.snapshot).map(([key, value]) => (
-                                <span key={key} className="text-[0.6875rem] px-2 py-1 rounded-[20px] bg-[#F7F8F6] border border-[#E2E8E4] text-[#1A2E1F]">
+                                <span key={key} className="rounded-[20px] border border-[#E2E8E4] bg-[#F7F8F6] px-2 py-1 text-[0.6875rem] text-[#1A2E1F]">
                                   {key}: {value}
                                 </span>
                               ))}
                             </div>
-                          )}
-                          {alert.autoActionMessage && (
-                            <p className="text-[0.75rem] text-[#1A2E1F] mt-2">{alert.autoActionMessage}</p>
-                          )}
+                          ) : null}
+                          {alert.autoActionMessage ? <p className="mt-2 text-[0.75rem] text-[#1A2E1F]">{alert.autoActionMessage}</p> : null}
                         </div>
                       )}
 
-                      {/* Action buttons */}
                       {alert.status !== "RESOLVED" && (
                         <div className="flex gap-2">
-                          {alert.status === "DETECTED" && (
-                            <button onClick={() => handleProcess(alert.id)} className="btn-secondary text-[0.8125rem] py-1.5 px-4">
+                          {alert.status === "DETECTED" ? (
+                            <button
+                              onClick={() => void handleProcess(alert.id)}
+                              disabled={isBusy}
+                              className="btn-secondary px-4 py-1.5 text-[0.8125rem] disabled:cursor-not-allowed disabled:opacity-60"
+                            >
                               Xác nhận xử lý
                             </button>
-                          )}
-                          <button onClick={() => handleResolve(alert.id)} className="btn-primary text-[0.8125rem] py-1.5 px-4">
+                          ) : null}
+                          <button
+                            onClick={() => void handleResolve(alert.id)}
+                            disabled={isBusy}
+                            className="btn-primary px-4 py-1.5 text-[0.8125rem] disabled:cursor-not-allowed disabled:opacity-60"
+                          >
                             <CheckCircle size={14} />
                             Đóng cảnh báo
                           </button>

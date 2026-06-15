@@ -18,10 +18,15 @@ type ScheduleCandidateRow = {
   duration_seconds: number | null;
   schedule_type: "daily" | "weekly";
   day_of_week: number | null;
+  due_at_utc: Date | string;
 };
 
 function toTimeLabel(startTime: string) {
   return startTime.slice(0, 5);
+}
+
+function toSqlTimestamp(value: Date | string) {
+  return new Date(value).toISOString().slice(0, 19).replace("T", " ");
 }
 
 function buildCause(deviceStatus: string) {
@@ -77,7 +82,17 @@ export async function ensureMissedIrrigationAlerts() {
           s.end_time::text AS end_time,
           s.duration_seconds,
           s.schedule_type,
-          s.day_of_week
+          s.day_of_week,
+          (
+            (
+              date_trunc('day', r.local_now)
+              + COALESCE(
+                s.end_time,
+                s.start_time + make_interval(secs => COALESCE(NULLIF(s.duration_seconds, 0), 300))
+              )
+              + make_interval(secs => $1)
+            ) AT TIME ZONE '${LOCAL_TIMEZONE}'
+          ) AT TIME ZONE 'UTC' AS due_at_utc
         FROM schedules s
         JOIN farm_zones z ON z.zone_id = s.zone_id
         JOIN farms f ON f.farm_id = z.farm_id
@@ -161,12 +176,13 @@ export async function ensureMissedIrrigationAlerts() {
             source_type,
             severity,
             message,
-            status
+            status,
+            created_at
           )
-          VALUES ($1, $2, 'system', 'system', 'warning', $3, 'detected')
+          VALUES ($1, $2, 'system', 'system', 'warning', $3, 'detected', $4)
           RETURNING alert_id
         `,
-        [row.zone_id, row.device_id, message],
+        [row.zone_id, row.device_id, message, toSqlTimestamp(row.due_at_utc)],
       );
 
       await query(
