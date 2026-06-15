@@ -14,7 +14,7 @@ Mushealy là nền tảng quản lý nông trại thông minh cho phép:
 - **Điều khiển thiết bị từ xa** — máy bơm, quạt, đèn, van nước qua MQTT
 - **Cảnh báo tự động** — thiết lập ngưỡng cảnh báo cho từng loại cảm biến
 - **Lịch tưới tiêu** — lên lịch tự động hoặc theo ngưỡng cảm biến
-- **AI chẩn đoán cây trồng** — upload ảnh phát hiện bệnh & phân loại trái cây
+<!-- - **AI chẩn đoán cây trồng** — upload ảnh phát hiện bệnh & phân loại trái cây -->
 - **Quản lý đa nông trại** — phân cấp Nông trại → Khu vực → Thiết bị
 - **Phân quyền** — ADMIN (quản lý toàn hệ thống) / FARMER (quản lý nông trại được gán)
 - **Sao lưu & phục hồi dữ liệu**
@@ -31,8 +31,9 @@ Mushealy là nền tảng quản lý nông trại thông minh cho phép:
 | UI Components | Radix UI, Recharts, Framer Motion, Lucide Icons |
 | Backend API | Next.js API Routes |
 | Database | PostgreSQL 16 (Neon trên Vercel / Docker local) |
-| IoT Gateway | Python 3.11, paho-mqtt |
-| MQTT Broker | OhStem (`mqtt.ohstem.vn`) |
+| IoT Edge OS | C++ trên nền tảng Hệ điều hành thời gian thực FreeRTOS |
+| Cloud MQTT Broker | CoreIoT (`app.coreiot.io`) |
+| Cloud Routing Engine | CoreIoT Rule Chain (JavaScript Filters, REST API Call Webhooks)
 | Deployment | Vercel (web app) + Docker Compose (full stack) |
 
 ---
@@ -40,31 +41,43 @@ Mushealy là nền tảng quản lý nông trại thông minh cho phép:
 ## Kiến trúc hệ thống
 
 ```
-┌──────────────┐     MQTT      ┌──────────────────┐     SQL      ┌────────────┐
-│  IoT Devices │ ◄──────────►  │  Python Gateway   │ ◄──────────► │ PostgreSQL │
-│  (Yolo:Bit)  │               │  (paho-mqtt)      │              │            │
-└──────────────┘               └──────────────────┘              └─────┬──────┘
-                                                                       │
-                                                                       │ SQL
-                                                                       │
-                                                                 ┌─────▼──────┐
-                                                                 │  Next.js   │
-                                                                 │  API Routes│
-                                                                 └─────┬──────┘
-                                                                       │
-                                                                       │ REST
-                                                                       │
-                                                                 ┌─────▼──────┐
-                                                                 │  React UI  │
-                                                                 │  (Browser) │
-                                                                 └────────────┘
+    ┌────────────────────────────────────────────────────────┐
+    │                    IOT DEVICE LAYER                    │
+    │                 [Yolo:Bit ESP32 Nodes]                 │
+    └───────────────────────────┬────────────────────────────┘
+                                │ ▲
+  Uplink: Publish Telemetry     │ │ Downlink: Real-time RPC
+  (MQTT JSON / Port 1883)       ▼ │ (MQTT Sub / JSON)
+    ┌───────────────────────────┴────────────────────────────┐
+    │                CLOUD INTERMEDIATE LAYER                │
+    │    [CoreIoT Cloud Broker & Gateway (app.coreiot.io)]   │
+    └───────────────────────────┬────────────────────────────┘
+                                │ ▲
+     HTTP POST Webhook          │ │ Downlink Control Command
+     (Event-Driven Trigger)     │ │ HTTP POST (JSON Payload)
+                                ▼ │
+    ┌───────────────────────────┴────────────────────────────┐
+    │                     BACKEND LAYER                      │
+    │     [Next.js API Routes (Hạ tầng Serverless Vercel)]   │
+    └───────────────────────────┬────────────────────────────┘
+                                │ ▲
+             SQL Ghi dữ liệu    │ │ Query / Fetch Telemetry
+             (Insert Direct)    │ │ RESTful API HTTP Requests
+                                ▼ │
+    ┌───────────────────────────┴────────────────────────────┐
+    │                 DATA & FRONTEND LAYER                  │
+    │  [Neon DB (PostgreSQL)]  ◄───►  [React Web Application]│
+    │  (Cloud Database Server)         (Giao diện điều khiển)│
+    └────────────────────────────────────────────────────────┘
 ```
 
 **Luồng dữ liệu:**
-1. Cảm biến IoT gửi dữ liệu qua MQTT đến OhStem broker
-2. Python Gateway nhận dữ liệu, lưu vào PostgreSQL
-3. Next.js API đọc DB, trả dữ liệu cho frontend hiển thị
-4. Người dùng bật/tắt thiết bị trên UI → API ghi lệnh vào DB → Gateway poll lệnh → publish MQTT → thiết bị thực thi
+Hệ thống vận hành hoàn toàn dựa trên cơ chế hướng sự kiện (*Event-Driven*) thời gian thực, loại bỏ hoàn toàn các vòng lặp quét cơ sở dữ liệu tuần tự (Polling) trung gian để tối ưu hóa hiệu năng:
+
+1. **Thu thập và Đẩy dữ liệu (Uplink Telemetry):** Mạch Yolo:Bit (ESP32) định kỳ sau mỗi 10 giây thu thập thông số từ các cảm biến, đóng gói tập trung vào một chuỗi JSON duy nhất và Publish lên CoreIoT Broker qua topic `v1/devices/me/telemetry`.
+2. **Định tuyến và Chuyển tiếp (Cloud Gateway Webhook):** Bộ cấu hình Rule Chain trên CoreIoT tiếp nhận gói tin, bóc tách dữ liệu và kích hoạt tức thời khối `REST API Call` dưới dạng một Webhook HTTP POST bắn thẳng sang API Serverless backend (`/api/telemetry`) triển khai trên đám mây Vercel.
+3. **Ghi cơ sở dữ liệu & Phản hồi UI:** Next.js API Routes trên Vercel phân tích payload nhận được từ Webhook, thực thi câu lệnh SQL ghi trực tiếp bản ghi vào đám mây Neon DB (PostgreSQL). Giao diện người dùng Web (React) sẽ gọi API định kỳ để kéo thông số mới về hiển thị lên biểu đồ.
+4. **Điều khiển tức thời thời gian thực (Downlink RPC):** Khi người dùng bật/tắt thiết bị trên giao diện Web UI, ứng dụng phát yêu cầu HTTP POST đến Next.js API để ghi nhật ký, đồng thời API kích hoạt ngay một lệnh gọi RPC dội thẳng sang CoreIoT Broker. CoreIoT ngay lập tức đẩy lệnh MQTT xuống topic `v1/devices/me/rpc/request/+` của mạch mà không cần thông qua bất kỳ vòng lặp quét DB nào.
 
 ---
 
@@ -180,18 +193,6 @@ Lệnh trên sẽ khởi chạy 3 service: PostgreSQL, Next.js app, và MQTT Gat
 | admin01 | admin@smartfarm.local | 123456 | Quản trị hệ thống |
 | farmer01 | farmer1@smartfarm.local | 123456 | Nông hộ 1 |
 | user01 | user1@smartfarm.local | 123456 | Người dùng 1 |
-
----
-
-## IoT — MQTT Feeds
-
-| Feed | Hướng | Thiết bị | Mô tả |
-|---|---|---|---|
-| `V1` | Sensor → DB | Nhiệt kế | Nhiệt độ không khí (°C) |
-| `V2` | Sensor → DB | Cảm biến độ ẩm | Độ ẩm không khí (%) |
-| `V3` | Sensor → DB | Cảm biến đất | Độ ẩm đất (%) |
-| `V4` | Sensor → DB | Cảm biến ánh sáng | Cường độ sáng (lux) |
-| `V10` | DB → Actuator | Máy bơm | Bật/tắt (1/0) |
 
 ---
 
