@@ -324,6 +324,8 @@ export interface AIDashboardContext {
     humiditySoil?: number | null;
     light?: number | null;
     updatedAt?: string | null;
+    ageMinutes?: number | null;
+    isStale?: boolean;
   };
   thresholds: {
     temperature?: { min: number; max: number } | null;

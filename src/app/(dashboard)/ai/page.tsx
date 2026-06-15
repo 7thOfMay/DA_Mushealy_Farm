@@ -36,6 +36,7 @@ export default function AIPage() {
 
   const [selectedGardenId, setSelectedGardenId] = useState("");
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [isStartingFreshChat, setIsStartingFreshChat] = useState(false);
   const [sessions, setSessions] = useState<AIChatSessionSummary[]>([]);
   const [activeSession, setActiveSession] = useState<AIChatSessionDetail | null>(null);
   const [dashboard, setDashboard] = useState<AIDashboardContext | null>(null);
@@ -56,6 +57,7 @@ export default function AIPage() {
       setActiveSession(null);
       setDashboard(null);
       setActiveSessionId(null);
+      setIsStartingFreshChat(false);
       return;
     }
 
@@ -79,7 +81,7 @@ export default function AIPage() {
       setDashboard(response.dashboard);
       setGeminiConfigured(response.geminiConfigured);
 
-      const nextSessionResponse = !response.activeSession && !activeSessionId && response.sessions[0]
+      const nextSessionResponse = !response.activeSession && !activeSessionId && !isStartingFreshChat && response.sessions[0]
         ? await apiGetAIChatState(loggedInUser.id, selectedGardenId, response.sessions[0].id)
         : null;
 
@@ -88,9 +90,11 @@ export default function AIPage() {
       if (response.activeSession) {
         setActiveSession(response.activeSession);
         setActiveSessionId(response.activeSession.id);
+        setIsStartingFreshChat(false);
       } else if (!activeSessionId && nextSessionResponse?.activeSession) {
         setActiveSession(nextSessionResponse.activeSession);
         setActiveSessionId(nextSessionResponse.activeSession.id);
+        setIsStartingFreshChat(false);
       } else if (!activeSessionId) {
         setActiveSession(null);
       }
@@ -102,12 +106,33 @@ export default function AIPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeSessionId, loggedInUser, selectedGardenId]);
+  }, [activeSessionId, isStartingFreshChat, loggedInUser, selectedGardenId]);
 
   useEffect(() => {
     if (!messagesViewportRef.current) return;
     messagesViewportRef.current.scrollTop = messagesViewportRef.current.scrollHeight;
   }, [activeSession?.messages, isSending]);
+
+  useEffect(() => {
+    if (!loggedInUser || !selectedGardenId) return;
+
+    const interval = window.setInterval(async () => {
+      const response = await apiGetAIChatState(loggedInUser.id, selectedGardenId, activeSessionId ?? undefined);
+      if (!response) return;
+
+      setSessions(response.sessions);
+      setDashboard(response.dashboard);
+      setGeminiConfigured(response.geminiConfigured);
+
+      if (activeSessionId && response.activeSession) {
+        setActiveSession(response.activeSession);
+      }
+    }, 10000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [activeSessionId, loggedInUser, selectedGardenId]);
 
   const selectedGardenName = useMemo(
     () => farmGardens.find((garden) => garden.id === selectedGardenId)?.name ?? "",
@@ -168,6 +193,7 @@ export default function AIPage() {
     setDashboard(response.dashboard);
     setActiveSession(response.session);
     setActiveSessionId(response.session?.id ?? null);
+    setIsStartingFreshChat(false);
     if (response.session) {
       setSessions((current) => {
         const next = [response.session as AIChatSessionSummary, ...current.filter((item) => item.id !== response.session?.id)];
@@ -195,6 +221,7 @@ export default function AIPage() {
     if (activeSessionId === sessionId) {
       setActiveSessionId(null);
       setActiveSession(null);
+      setIsStartingFreshChat(nextSessions.length === 0);
     }
 
     addToast({ type: "success", message: "Đã xóa lịch sử chat AI." });
@@ -215,6 +242,7 @@ export default function AIPage() {
     setActiveSession(response.activeSession);
     setActiveSessionId(response.activeSession?.id ?? null);
     setGeminiConfigured(response.geminiConfigured);
+    setIsStartingFreshChat(false);
     setIsLoading(false);
   };
 
@@ -250,6 +278,7 @@ export default function AIPage() {
                   setSelectedGardenId(event.target.value);
                   setActiveSessionId(null);
                   setActiveSession(null);
+                  setIsStartingFreshChat(false);
                   setComposer("");
                   setImageDataUrl(null);
                   setImageName(null);
@@ -275,6 +304,7 @@ export default function AIPage() {
                   onClick={() => {
                     setActiveSessionId(null);
                     setActiveSession(null);
+                    setIsStartingFreshChat(true);
                     setComposer("");
                     setImageDataUrl(null);
                     setImageName(null);
@@ -408,6 +438,29 @@ export default function AIPage() {
                         </p>
                       </div>
                     ))}
+                  </div>
+
+                  <div
+                    className={cn(
+                      "rounded-[18px] border px-4 py-3 text-[0.8125rem]",
+                      dashboard.latestSensors.updatedAt && !dashboard.latestSensors.isStale
+                        ? "border-[#D7E2DB] bg-white text-[#5C7A6A]"
+                        : "border-[#F5D0CC] bg-[#FFF4F2] text-[#A04034]",
+                    )}
+                  >
+                    {dashboard.latestSensors.updatedAt ? (
+                      <>
+                        Dữ liệu AI đang dùng được cập nhật {timeAgo(dashboard.latestSensors.updatedAt)}
+                        {typeof dashboard.latestSensors.ageMinutes === "number"
+                          ? ` (${dashboard.latestSensors.ageMinutes} phút trước).`
+                          : "."}{" "}
+                        {dashboard.latestSensors.isStale
+                          ? "Hiện dữ liệu này đã cũ, AI chỉ nên phân tích theo xu hướng tham khảo chứ không xem là trạng thái realtime."
+                          : "Dashboard AI hiện đang bám theo dữ liệu cảm biến mới nhất của khu vườn này."}
+                      </>
+                    ) : (
+                      "Khu vườn này chưa có dữ liệu cảm biến gần đây, nên AI sẽ thiên về tư vấn kiến thức chung hơn là phân tích realtime."
+                    )}
                   </div>
                 </div>
 

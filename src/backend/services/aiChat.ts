@@ -99,6 +99,13 @@ function toIso(value: Date | string | null | undefined) {
   return new Date(value).toISOString();
 }
 
+function diffMinutesFromNow(value: Date | string | null | undefined) {
+  if (!value) return null;
+  const timestamp = new Date(value).getTime();
+  if (Number.isNaN(timestamp)) return null;
+  return Math.max(0, Math.round((Date.now() - timestamp) / 60000));
+}
+
 function mapDeviceType(deviceTypeId: number): DeviceType {
   switch (deviceTypeId) {
     case 1:
@@ -454,6 +461,9 @@ export async function fetchGardenDashboardContext(gardenId: string) {
     if (row.metric_type === "light") latestSensors.light = row.value;
     latestSensors.updatedAt = toIso(row.recorded_at);
   }
+
+  latestSensors.ageMinutes = diffMinutesFromNow(latestSensors.updatedAt);
+  latestSensors.isStale = latestSensors.ageMinutes !== null ? latestSensors.ageMinutes >= 60 : true;
 
   const thresholdMap: AIDashboardContext["thresholds"] = {};
   for (const row of thresholds) {

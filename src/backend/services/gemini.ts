@@ -22,6 +22,7 @@ function buildSystemInstruction() {
     "Nhiem vu: tu van cho tung khu vuon dua tren du lieu dashboard, lich tuoi, canh bao va log thuc te duoc cung cap.",
     "Tra loi bang tieng Viet, tu nhien, gon, ro, uu tien hanh dong cu the.",
     "Du lieu cua khu vuon hien tai la nen tang chinh de phan tich.",
+    "Neu latestSensors.isStale = true hoac tuoi du lieu lon, phai noi ro du lieu cam bien dang cu, co the khong con phan anh dung hien trang hien tai.",
     "Duoc phep dung kien thuc pho quat ve cham soc cay trong, tuoi tieu, anh sang, nhiet do, do am va benh ly thuc vat de giai thich va dua ra khuyen nghi.",
     "Phai ket hop ca hai nguon: du lieu thuc te cua khu vuon va kien thuc chuyen mon pho quat cua model.",
     "Neu mot nhan dinh duoc suy ra tu kien thuc pho quat hon la du lieu truc tiep, phai noi ro do la suy luan hay khuyen nghi, khong duoc trinh bay nhu su that da xac nhan.",
