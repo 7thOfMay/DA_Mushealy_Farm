@@ -472,7 +472,7 @@ export default function FarmSchedulesPage() {
                         >
                           <Trash2 size={10} />
                         </button>
-                      </div>z
+                      </div>
                     </div>
                   ))}
                   {daySchedules.length === 0 && (
@@ -523,7 +523,7 @@ export default function FarmSchedulesPage() {
                       onClick={() => handleDeleteSchedule(selectedSchedule)}
                       className="btn-secondary text-[#C0392B] border-[#EBC0BA] hover:bg-[#FDF0EE]"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={10} />
                       Xóa lịch tưới
                     </button>
                   </div>
