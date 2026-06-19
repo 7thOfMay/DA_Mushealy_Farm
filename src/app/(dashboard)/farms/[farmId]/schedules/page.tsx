@@ -208,10 +208,11 @@ export default function FarmSchedulesPage() {
   };
 
   const handleDeleteSchedule = async (schedule: Schedule) => {
+    const isConfirmed = window.confirm(`Bạn có chắc muốn xóa lịch tưới ${schedule.name ?? schedule.deviceName} của ${schedule.gardenName}? Hành động này không thể hoàn tác.`);
+    if (!isConfirmed) return;
     try {
       await apiDeleteSchedule(schedule.id);
     } catch {}
-      window.confirm(`Xóa lịch tưới ${schedule.name ?? schedule.deviceName}?`);
     removeSchedule(schedule.id);
     if (selectedId === schedule.id) {
       setSelectedId(null);
