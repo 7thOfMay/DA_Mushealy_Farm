@@ -467,7 +467,7 @@ export default function FarmSchedulesPage() {
                         <Badge variant={typeBadge[item.scheduleType ?? "TIME_BASED"]}>{typeLabel[item.scheduleType ?? "TIME_BASED"]}</Badge>
                         <button
                           onClick={() => handleDeleteSchedule(item)}
-                          className="px-1.5 py-1 rounded-[8px] border border-[#E2E8E4] text-[#C0392B] hover:bg-[#FDF0EE] transition-colors"
+                          className="px-1.5 py-1 rounded-[5px] border border-[#E2E8E4] text-[#C0392B] hover:bg-[#FDF0EE] transition-colors"
                           title="Xóa lịch tưới"
                         >
                           <Trash2 size={10} />
