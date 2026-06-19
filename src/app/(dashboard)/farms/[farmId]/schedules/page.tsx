@@ -518,12 +518,12 @@ export default function FarmSchedulesPage() {
                     </div>
                   )}
 
-                  <div className="mt-4 pt-3 border-t border-[#E2E8E4] flex justify-end">
+                  <div className="mt-6 pt-5 border-t border-[#E2E8E4] flex justify-end">
                     <button
                       onClick={() => handleDeleteSchedule(selectedSchedule)}
                       className="btn-secondary text-[#C0392B] border-[#EBC0BA] hover:bg-[#FDF0EE]"
                     >
-                      <Trash2 size={10} />
+                      <Trash2 size={14} />
                       Xóa lịch tưới
                     </button>
                   </div>
