@@ -472,14 +472,20 @@ export default function FarmSchedulesPage() {
                         >
                           <Trash2 size={14} />
                         </button>
-                        <button
-                          onClick={() => handleDeleteSchedule(item)}
-                          className="px-2.5 py-2 rounded-[8px] border border-[#E2E8E4] text-[#C0392B] hover:bg-[#FDF0EE] transition-colors"
-                          title="Sửa lịch tưới"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {/* 👇 ĐÂY LÀ NÚT SỬA ĐÃ ĐƯỢC CHỈNH LẠI CHO CHUẨN 👇 */}
+  <button
+    onClick={() => {
+      setEditingSchedule(item); // Lưu lịch này vào túi nhớ tạm
+      setShowCreator(true);     // Bật cái bảng form lên
+    }}
+    className="px-2.5 py-2 rounded-[8px] border border-[#E2E8E4] text-[#2980B9] hover:bg-[#EBF5FB] transition-colors"
+    title="Sửa lịch tưới"
+  >
+    <Edit size={14} /> {/* Icon cây bút (Nhớ import ở trên cùng file nha) */}
+  </button>
+  {/* 👆 KẾT THÚC NÚT SỬA 👆 */}
                       </div>
+                      
                     </div>
                   ))}
                   {daySchedules.length === 0 && (
