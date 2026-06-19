@@ -211,7 +211,7 @@ export default function FarmSchedulesPage() {
     try {
       await apiDeleteSchedule(schedule.id);
     } catch {}
-
+      window.confirm(`Xóa lịch tưới ${schedule.name ?? schedule.deviceName}?`);
     removeSchedule(schedule.id);
     if (selectedId === schedule.id) {
       setSelectedId(null);
