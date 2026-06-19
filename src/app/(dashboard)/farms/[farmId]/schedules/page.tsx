@@ -472,6 +472,13 @@ export default function FarmSchedulesPage() {
                         >
                           <Trash2 size={14} />
                         </button>
+                        <button
+                          onClick={() => handleDeleteSchedule(item)}
+                          className="px-2.5 py-2 rounded-[8px] border border-[#E2E8E4] text-[#C0392B] hover:bg-[#FDF0EE] transition-colors"
+                          title="Sửa lịch tưới"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </div>
                   ))}
